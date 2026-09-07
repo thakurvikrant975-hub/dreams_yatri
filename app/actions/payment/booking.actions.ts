@@ -14,7 +14,8 @@ import { getProvider } from "@/app/lib/payments/registry";
 import { changeTravelDate, previewDateChange } from "./change-date.service";
 import type { CheckoutInput } from "@/app/actions/quote/checkout-schema";
 import type { GatewayId } from "@/app/lib/payments/types";
-import type { CreateBookingOrderResult, CreateBookingResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview, DateChangeResult, DateChangePreview } from "./types";
+import { payerContactSchema, type PayerContact } from "./payer-contact";
+import type { CreateBookingOrderResult, CreateBookingResult, CreateCustomBookingResult, VerifyCheckoutResult, CancelBookingResult, CancellationPreview, DateChangeResult, DateChangePreview } from "./types";
 
 /**
  * Step 1 of checkout ("Proceed to Payment"): turn a quote into a Booking with
@@ -80,12 +81,24 @@ export async function createCustomPackageBookingDraft(
     /** The total shown on the review step — checked, not trusted. See the
      * service. */
     expectedTotal?: number | null,
-): Promise<CreateBookingResult> {
+    /** The payer's own name/email/phone, from the review step's form. Sent only
+     * after the first attempt came back asking for them. Validated here rather
+     * than trusted: it arrives from a public page and ends up on an invoice. */
+    contact?: PayerContact | null,
+): Promise<CreateCustomBookingResult> {
     const user = await getAuthenticatedUser();
     if (!user?.id) return { success: false, reason: "unauthenticated" };
 
+    const parsed = contact ? payerContactSchema.safeParse(contact) : null;
+    if (contact && !parsed?.success) {
+        return { success: false, reason: "invalid", message: "Please check the name, email and phone you entered." };
+    }
+
     try {
-        return await createBookingFromCustomPackage({ customPackageId, userId: user.id, stayOptionId, paymentChoice, expectedTotal });
+        return await createBookingFromCustomPackage({
+            customPackageId, userId: user.id, stayOptionId, paymentChoice, expectedTotal,
+            contact: parsed?.success ? parsed.data : null,
+        });
     } catch (err) {
         console.error("[createCustomPackageBookingDraft] failed", err);
         return { success: false, reason: "error", message: "Could not start your booking. Please try again." };

@@ -1,10 +1,11 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { db } from "@/app/lib/db";
+import { payerContactPrefill, payerContactComplete, savePayerContact, type PayerContact } from "./payer-contact";
 import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
 import { enabledGateways } from "@/app/lib/payments/registry";
-import type { CreateBookingResult } from "./types";
+import type { CreateBookingResult, CreateCustomBookingResult } from "./types";
 
 function genBookingNumber(): string {
     const d = new Date();
@@ -47,7 +48,11 @@ export async function createBookingFromCustomPackage(params: {
      * client never saw. Absent skips the check, for callers with nothing to
      * compare. */
     expectedTotal?: number | null;
-}): Promise<CreateBookingResult> {
+    /** The payer's own name, email and phone, from the review step's form.
+     * Absent on the first attempt: the caller does not know whether we need
+     * them until this says so. See the contact gate below. */
+    contact?: PayerContact | null;
+}): Promise<CreateCustomBookingResult> {
     const { customPackageId, userId, stayOptionId } = params;
 
     const cp = await db.custom_packages.findUnique({
@@ -211,6 +216,36 @@ export async function createBookingFromCustomPackage(params: {
         return { success: false, reason: "error", message: "This package doesn't have a travel date set yet — please contact your travel manager." };
     }
 
+    // ── Who is paying, and how we reach them ─────────────────────────────────
+    // Last of the gates on purpose: there is no point asking someone for their
+    // phone number and then telling them the package is not priced.
+    //
+    // The booking used to take the LEAD's email and phone, which is right only
+    // while the payer is the person quoted. On a forwarded share link they are
+    // routinely different people, and the invoice went out with the payer's
+    // account name beside the lead's email and the lead's phone.
+    //
+    // A booking that cannot be addressed is not a booking, so an incomplete
+    // payer is refused — but with everything we hold, so the form the client
+    // sees is already filled in and usually needs one field.
+    const provided = params.contact ?? null;
+    const known = await payerContactPrefill(userId, { name: query.name, email: query.email, phone: query.phone });
+    const payer = provided ?? { name: known.name, email: known.email, phone: known.phone };
+    if (!payerContactComplete(payer)) {
+        return { success: false, reason: "contact_required", prefill: known };
+    }
+    // Written back to the account so this is asked once, not every booking.
+    // Never fatal: a number already on another login is reported by the helper
+    // and the booking still carries what they typed, because the contact on an
+    // invoice is a fact about this booking rather than about which row owns
+    // the string.
+    if (provided) {
+        await savePayerContact(userId, provided).catch((e) => {
+            console.error("[createBookingFromCustomPackage] savePayerContact", e);
+            return { conflict: null };
+        });
+    }
+
     // ── Destination resolution — same two-step fuzzy match as
     // tryCreateBookingFromConvertedQuery: exact match first, then contains.
     // Bail out with a clear message rather than fabricating a destination. ──
@@ -295,8 +330,9 @@ export async function createBookingFromCustomPackage(params: {
                 stayOptionId: chosenOption?.id ?? null,
                 stayOptionLabel: chosenOption?.label ?? null,
                 convertedAt: new Date(),
-                contactEmail: query.email ?? undefined,
-                contactPhone: query.phone ?? undefined,
+                // The payer's own, not the lead's — see the contact gate above.
+                contactEmail: payer.email,
+                contactPhone: payer.phone,
                 installments: {
                     create: effInstallments.map((l) => ({
                         type: l.type,
