@@ -1,5 +1,6 @@
 import { Phone, Mail, Star } from "lucide-react";
 import DyLogo from "@/app/components/ui/DyLogo";
+import FitToWidth from "@/app/components/ui/FitToWidth";
 import type { VoucherData, VoucherDay } from "@/app/lib/voucher";
 import { COMPANY } from "@/app/lib/company";
 
@@ -80,10 +81,30 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
  * `min-height` keeps a short voucher looking like a page on screen and is
  * dropped in print, where trailing space would otherwise become a blank page.
  */
+/** 210mm at 96dpi, the width the sheet below is drawn at. FitToWidth scales
+ *  against it, so the two must stay in step. */
+const SHEET_WIDTH = 794;
+
 function Sheet({ children }: { children: React.ReactNode }) {
     return (
-        <div className="voucher-page mx-auto w-[210mm] max-w-full min-h-[297mm] bg-white shadow-lg print:shadow-none rounded-sm">
-            {children}
+        // The sheet used to carry `max-w-full`, which let a 210mm document
+        // squash to a 390px phone. Nothing reflows at that width — it just
+        // crushes: the accommodation table's five headers ("Hotel", "Room
+        // Type", "Check-in", "Check-out", "Nights") each wrapped onto three
+        // lines and the header block ended up taller than the rows it labelled.
+        // Scaled now instead, so the phone shows the same document the printer
+        // and the ops desk do.
+        //
+        // The max-width restores the centring `mx-auto` used to give: FitToWidth
+        // scales from the top-left, so without a bound the sheet would sit
+        // pinned to the left edge of a wide window. Dropped in print, where the
+        // @page box governs and a px cap could clip the sheet.
+        <div className="mx-auto w-full max-w-[794px] print:max-w-none">
+            <FitToWidth width={SHEET_WIDTH}>
+                <div className="voucher-page w-[210mm] min-h-[297mm] bg-white shadow-lg print:shadow-none rounded-sm">
+                    {children}
+                </div>
+            </FitToWidth>
         </div>
     );
 }
@@ -116,8 +137,8 @@ function Stars({ count }: { count: number }) {
 /** Grid lines shared by the itinerary and transport tables, so both read as the
  *  same drawn table: a neutral rule in the body, a lighter primary one inside
  *  the header where the fill is already primary. */
-const CELL_BORDER = "border border-neutral-200/80";
-const HEAD_BORDER = "border border-primary-300/70";
+const CELL_BORDER = "border border-neutral-300";
+const HEAD_BORDER = "border border-primary-300";
 
 function ItineraryTable({ days }: { days: VoucherDay[] }) {
     return (
@@ -548,7 +569,7 @@ export default function VoucherDocument({
                     </div>
                 </div>
 
-                <div className="mt-8 border-t border-neutral-200 px-10 py-5 flex items-center justify-between text-[11px] text-neutral-600/90">
+                <div className="mt-8 border-t border-neutral-300 px-10 py-5 flex items-center justify-between text-[11px] text-neutral-600/90">
                     <span>{SUPPORT_EMAIL} · {SUPPORT_PHONE}</span>
                     <DyLogo className="h-4 text-primary-500" />
                 </div>

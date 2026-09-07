@@ -30,9 +30,9 @@
  * component-built total would not survive as ₹1, since margin and GST each
  * round up independently and would add ₹1 apiece.
  *
- * NOTE ON THE PAYMENT PLAN. The ₹10,000 minimum-deposit floor collapses a ₹1
+ * NOTE ON THE PAYMENT PLAN. The ₹5,000 minimum-deposit floor collapses a ₹1
  * total to a single FULL leg, so this fixture cannot exercise the
- * DEPOSIT → balance flow. That needs a total above ~₹40,000 and travel more
+ * DEPOSIT → balance flow. That needs a total above ~₹20,000 and travel more
  * than PAYMENT_BALANCE_DUE_DAYS_BEFORE_TRAVEL (15) days out. Set TEST_PRICE to
  * do that once the ₹1 pass is clean.
  *
