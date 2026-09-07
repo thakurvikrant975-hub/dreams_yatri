@@ -61,6 +61,7 @@ unsynced-stays-rollback.*.json
 meal-casing-rollback.*.json
 dangling-rates-rollback.*.json
 quoted-seasons-rollback.*.json
+lead-request-test-cleanup-rollback.*.json
 
 # Test-clone manifests are per-database state, not source
 scripts/test-clone-manifest.*.json

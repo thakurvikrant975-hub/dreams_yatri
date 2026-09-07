@@ -1,10 +1,11 @@
 import "server-only";
 import { randomBytes } from "crypto";
 import { db } from "@/app/lib/db";
+import { payerContactPrefill, payerContactComplete, savePayerContact, type PayerContact } from "./payer-contact";
 import { computePaymentSchedule } from "@/app/services/payment-policy/engine";
 import { rupeesToPaise } from "@/app/lib/money";
 import { enabledGateways } from "@/app/lib/payments/registry";
-import type { CreateBookingResult } from "./types";
+import type { CreateBookingResult, CreateCustomBookingResult } from "./types";
 
 function genBookingNumber(): string {
     const d = new Date();
@@ -47,7 +48,11 @@ export async function createBookingFromCustomPackage(params: {
      * client never saw. Absent skips the check, for callers with nothing to
      * compare. */
     expectedTotal?: number | null;
-}): Promise<CreateBookingResult> {
+    /** The payer's own name, email and phone, from the review step's form.
+     * Absent on the first attempt: the caller does not know whether we need
+     * them until this says so. See the contact gate below. */
+    contact?: PayerContact | null;
+}): Promise<CreateCustomBookingResult> {
     const { customPackageId, userId, stayOptionId } = params;
 
     const cp = await db.custom_packages.findUnique({
@@ -82,11 +87,63 @@ export async function createBookingFromCustomPackage(params: {
     const thisPackageUrl = `/custom-package/${cp.id}`;
     const existing = await db.booking.findUnique({
         where: { sourceQueryId: query.id },
-        select: { id: true, userId: true, bookingNumber: true, packageUrl: true },
+        select: {
+            id: true, userId: true, bookingNumber: true, packageUrl: true,
+            // What separates a draft from a sale — see the takeover below.
+            paymentStatus: true, paidAmount: true,
+        },
     });
     if (existing) {
         if (existing.userId !== userId) {
-            return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+            // ── Someone else got here first. Whether that matters depends
+            //    entirely on whether they paid.
+            //
+            // A share link is forwarded — a family thread, a group of friends
+            // deciding together. Several people open it and one of them taps
+            // Book to see what happens. That used to claim the trip for good:
+            // Booking.sourceQueryId is @unique, so the first click owned the
+            // quote and everyone else, including whoever was actually going to
+            // pay, hit "Booking belongs to another user" with no way past it
+            // and nothing in the UI to clear it.
+            //
+            // The claim belongs to the money, not to the click. An unpaid
+            // draft is just someone who looked, so it is handed over.
+            const settled = existing.paymentStatus !== "PENDING" || Number(existing.paidAmount) > 0;
+            if (settled) {
+                return {
+                    success: false,
+                    reason: "invalid",
+                    message: `This trip has already been booked and paid for (${existing.bookingNumber}). If someone in your group paid, ask them to share it with you — or contact your travel manager.`,
+                };
+            }
+
+            // A compare-and-swap, not just a guarded write. Matching on the
+            // owner we read a moment ago is what makes two people pressing
+            // Book at the same instant resolve to one winner: without it both
+            // updates land, the last one silently wins, and the other party
+            // walks on to an owner-scoped payment page that tells them the
+            // booking does not exist. paidAmount/paymentStatus stay in the
+            // predicate too, so a capture landing mid-flight also blocks it.
+            const taken = await db.booking.updateMany({
+                where: {
+                    id: existing.id,
+                    userId: existing.userId,
+                    paymentStatus: "PENDING",
+                    paidAmount: 0,
+                },
+                data: { userId },
+            });
+            if (taken.count === 0) {
+                return {
+                    success: false,
+                    reason: "invalid",
+                    message: `This trip has just been booked by someone else (${existing.bookingNumber}). Please refresh, or contact your travel manager.`,
+                };
+            }
+            // Any gateway order the previous holder left open stays on the
+            // booking. It was never captured, so it is worth nothing — and if
+            // it somehow is captured later, reconcile credits it to this same
+            // booking, which is the trip it was always paying for.
         }
         if (existing.packageUrl && existing.packageUrl !== thisPackageUrl) {
             return {
@@ -157,6 +214,36 @@ export async function createBookingFromCustomPackage(params: {
     }
     if (!cp.travelDate) {
         return { success: false, reason: "error", message: "This package doesn't have a travel date set yet — please contact your travel manager." };
+    }
+
+    // ── Who is paying, and how we reach them ─────────────────────────────────
+    // Last of the gates on purpose: there is no point asking someone for their
+    // phone number and then telling them the package is not priced.
+    //
+    // The booking used to take the LEAD's email and phone, which is right only
+    // while the payer is the person quoted. On a forwarded share link they are
+    // routinely different people, and the invoice went out with the payer's
+    // account name beside the lead's email and the lead's phone.
+    //
+    // A booking that cannot be addressed is not a booking, so an incomplete
+    // payer is refused — but with everything we hold, so the form the client
+    // sees is already filled in and usually needs one field.
+    const provided = params.contact ?? null;
+    const known = await payerContactPrefill(userId, { name: query.name, email: query.email, phone: query.phone });
+    const payer = provided ?? { name: known.name, email: known.email, phone: known.phone };
+    if (!payerContactComplete(payer)) {
+        return { success: false, reason: "contact_required", prefill: known };
+    }
+    // Written back to the account so this is asked once, not every booking.
+    // Never fatal: a number already on another login is reported by the helper
+    // and the booking still carries what they typed, because the contact on an
+    // invoice is a fact about this booking rather than about which row owns
+    // the string.
+    if (provided) {
+        await savePayerContact(userId, provided).catch((e) => {
+            console.error("[createBookingFromCustomPackage] savePayerContact", e);
+            return { conflict: null };
+        });
     }
 
     // ── Destination resolution — same two-step fuzzy match as
@@ -243,8 +330,9 @@ export async function createBookingFromCustomPackage(params: {
                 stayOptionId: chosenOption?.id ?? null,
                 stayOptionLabel: chosenOption?.label ?? null,
                 convertedAt: new Date(),
-                contactEmail: query.email ?? undefined,
-                contactPhone: query.phone ?? undefined,
+                // The payer's own, not the lead's — see the contact gate above.
+                contactEmail: payer.email,
+                contactPhone: payer.phone,
                 installments: {
                     create: effInstallments.map((l) => ({
                         type: l.type,

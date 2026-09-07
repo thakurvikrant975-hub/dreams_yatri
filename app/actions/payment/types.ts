@@ -44,6 +44,27 @@ export type CreateBookingResult =
     | { success: true; bookingId: string; bookingNumber: string }
     | { success: false; reason: CreateBookingOrderReason; message?: string };
 
+/**
+ * The custom-package path's own result: everything above, plus one refusal the
+ * client resolves on the spot rather than an error.
+ *
+ * `contact_required` means we do not hold a name, an email AND a phone for
+ * whoever is paying, and an invoice cannot be addressed without all three. It
+ * carries what we already know so the form opens filled in, and which channel
+ * the session already proved.
+ *
+ * Its own type rather than a wider CreateBookingResult: only this path can
+ * return it, and widening the shared one made every existing consumer of
+ * `.message` — the catalogue review, the hotel checkout — stop type-checking
+ * for a case none of them can ever receive.
+ */
+export type CreateCustomBookingResult =
+    | CreateBookingResult
+    | {
+        success: false; reason: "contact_required";
+        prefill: { name: string; email: string; phone: string; verified: "email" | "phone" | null };
+    };
+
 /** Browser-callback verify — confirms the checkout signature (UX only; truth = webhook). */
 export type VerifyCheckoutResult =
     | { success: true; bookingId: string }

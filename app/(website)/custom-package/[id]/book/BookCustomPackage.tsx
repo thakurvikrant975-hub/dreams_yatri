@@ -28,6 +28,8 @@ import { possessive } from "@/app/lib/possessive";
 import { Heading, Text } from "@/app/components/ui/Typography";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 import { createCustomPackageBookingDraft } from "@/app/actions/payment/booking.actions";
+import PayerContactDialog, { type PayerPrefill } from "./PayerContactDialog";
+import type { PayerContact } from "@/app/actions/payment/payer-contact";
 
 export type BookSummary = {
   packageId: string;
@@ -77,6 +79,10 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   const [policy, setPolicy] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Non-null while the payer-contact form is open — see the contact gate in
+   *  createBookingFromCustomPackage. Holds what we already know about them. */
+  const [prefill, setPrefill] = useState<PayerPrefill | null>(null);
+  const [contactError, setContactError] = useState<string | null>(null);
 
   // The engine decides whether a deposit is allowed at all; the client only
   // chooses when it is. Showing a choice that checkout would override is how
@@ -85,7 +91,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
   const choice: "DEPOSIT" | "FULL" = summary.mustPayFull ? "FULL" : payChoice;
   const payNow = choice === "FULL" ? summary.total : summary.depositAmount;
 
-  async function proceed() {
+  async function proceed(contact?: PayerContact) {
     setSubmitting(true);
     setError(null);
     try {
@@ -93,7 +99,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
       // can refuse to charge a different one. Not a price — a claim about
       // what was seen.
       const res = await createCustomPackageBookingDraft(
-        summary.packageId, summary.optionId, choice, summary.total,
+        summary.packageId, summary.optionId, choice, summary.total, contact ?? null,
       );
       if (!res.success) {
         setSubmitting(false);
@@ -106,6 +112,14 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
           });
           return;
         }
+        if (res.reason === "contact_required") {
+          // Not an error — the one thing still missing before an invoice can
+          // be addressed. The form opens on what we already hold, so this is
+          // usually a single empty field.
+          setPrefill(res.prefill);
+          setContactError(null);
+          return;
+        }
         setError(res.message ?? "Could not start your booking. Please try again.");
         // A price that moved is the one failure the client can clear
         // themselves, and only by re-reading the page. Refreshed for them, so
@@ -113,6 +127,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
         if (res.message?.includes("price changed")) router.refresh();
         return;
       }
+      setPrefill(null);
       router.push(`/bookings/${res.bookingId}/pay`);
     } catch (err) {
       console.error("[BookCustomPackage] failed", err);
@@ -151,7 +166,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
 
           Full-bleed photo, but the words on it keep the column's measure, so
           the lockup's left edge and the payment card's line up. */}
-      <div className="relative mt-4 h-56 w-full overflow-hidden bg-neutral-800 sm:h-72">
+      <div className="relative  h-56 w-full overflow-hidden bg-neutral-800 sm:h-72">
         {summary.coverImage && (
           /* eslint-disable-next-line @next/next/no-img-element -- stored URL, not a known host */
           <img src={summary.coverImage} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -319,7 +334,7 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
 
                 <Button
                   variant="premium" size="lg" className="w-full mt-4"
-                  onClick={proceed} loading={submitting} disabled={!policy || submitting}
+                  onClick={() => proceed()} loading={submitting} disabled={!policy || submitting}
                 >
                   {policy ? `Pay ${money(summary.currency, payNow)} now` : "Accept policies to continue"}
                 </Button>
@@ -329,6 +344,17 @@ export function BookCustomPackage({ summary }: { summary: BookSummary }) {
           </SectionCard>
         </div>
       </div>
+
+      {prefill && (
+        <PayerContactDialog
+          prefill={prefill}
+          submitting={submitting}
+          error={contactError}
+          onCancel={() => { setPrefill(null); setSubmitting(false); }}
+          onSubmit={(c) => { setContactError(null); proceed(c); }}
+        />
+      )}
+
     </div>
   );
 }
