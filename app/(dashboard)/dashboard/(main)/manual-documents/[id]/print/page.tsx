@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import InvoiceDocument from "@/app/components/invoice/InvoiceDocument";
+import InvoiceFit from "@/app/components/invoice/InvoiceFit";
 import VoucherDocument from "@/app/components/voucher/VoucherDocument";
 import {
     ManualInvoicePayloadSchema,
@@ -40,7 +41,7 @@ export default async function ManualDocumentPrintPage({ params }: { params: Prom
         return (
             <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
                 <style>{`@media print { .no-print { display: none !important; } @page { margin: 12mm; } }`}</style>
-                <InvoiceDocument document={manualInvoiceToDocument(record, payload)} />
+                <InvoiceFit><InvoiceDocument document={manualInvoiceToDocument(record, payload)} /></InvoiceFit>
                 <PrintDocumentButton backHref={`/dashboard/manual-documents/${id}`} />
             </div>
         );

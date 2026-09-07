@@ -10,6 +10,7 @@ import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import { isPaidStatus } from '@/app/lib/messaging';
 import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
+import InvoiceFit from '@/app/components/invoice/InvoiceFit';
 import { INVOICE_BOOKING_SELECT, resolveCustomPackageTitle } from '@/app/lib/invoice';
 import StatusPoller from './StatusPoller';
 import DownloadReceiptButton from './DownloadReceiptButton';
@@ -132,8 +133,11 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                                     </Text>
                                 </div>
 
+                                {/* -mx-8 gives the sheet the card's padding back
+                                    on a phone, so InvoiceFit scales against the
+                                    full screen rather than the padded column. */}
                                 <div className="mt-7 -mx-8 sm:mx-0">
-                                    <InvoiceDocument booking={booking} />
+                                    <InvoiceFit><InvoiceDocument booking={booking} /></InvoiceFit>
                                 </div>
 
                                 <div className="mt-4 flex justify-center gap-4 text-sm">
