@@ -14,8 +14,15 @@ import {
 import { StayTiersSection } from "./StayTiersSection";
 import { ItineraryDaySidebar } from "./ItineraryDaySidebar";
 import { CopyFromRouteDialog } from "./CopyFromRouteDialog";
-import { handleGetItineraryData, handleDeleteItineraryDay } from "@/app/actions/packages/itinerary-builder.actions";
+import {
+  handleGetItineraryData, handleDeleteItineraryDay,
+  handleUpsertDayMeta, handleAddNote, handleUpdateNote,
+} from "@/app/actions/packages/itinerary-builder.actions";
 import type { DayData, StayCategoryFull } from "@/app/services/itinerary-builder.service";
+import { Textarea } from "../../components/ui/textarea";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "../../components/ui/dialog";
 import {
   CalendarDays,
   Loader2,
@@ -29,6 +36,9 @@ import {
   MapPin,
   Copy,
   Trash2,
+  Wand2,
+  ClipboardPaste,
+  AlertTriangle,
 } from "lucide-react";
 
 import { cn } from "@/app/lib/utils";
@@ -284,6 +294,234 @@ function DayCard({
   );
 }
 
+// ── AI Itinerary Builder ─────────────────────────────────────────────────────
+// Same copy-a-prompt / paste-back-JSON workflow as the query-based package
+// builder's AI Itinerary Builder (no direct LLM API call from this app).
+// Deliberately scoped to only what's free text here: day title/description
+// and a "highlights" note. Unlike the query builder, activities/transfers/
+// stays in this system are relational — real Activity catalog entries, real
+// vehicles, real room_pricing tied to actual hotel inventory — an AI
+// response can't invent valid IDs for those, so it never touches them.
+// Unlike the query builder, this one overwrites: the AI's title/description
+// win over whatever's already on the day, and a prior AI-added highlights
+// note gets replaced rather than duplicated (matched by its bullet-point
+// marker — a note a person wrote by hand is never touched, since it won't
+// start with "• "). Still never creates days beyond the selected duration's
+// day count.
+
+type AIItineraryDay = { day?: number; title?: string; description?: string; highlights?: string[] };
+type AIItineraryResponse = { days?: AIItineraryDay[] };
+
+function buildAIItineraryPrompt(stops: RouteStop[], totalDays: number, durationLabel: string): string {
+  const destinationsLine = stops.length > 0
+    ? stops.map((s) => `${s.place_name} (${s.stay_days} Night${s.stay_days !== 1 ? "s" : ""})`).join(", ")
+    : `(${totalDays} day trip — no route stops set yet, use your best judgement for a sensible route)`;
+
+  return `AI Itinerary Builder Prompt
+
+Create a JSON itinerary for my travel package builder tool so I can paste it directly. Respond with the JSON wrapped in a single \`\`\`json code block — nothing before or after it, no explanation. This matters because I'll copy it using the code block's own copy button.
+
+Critical: every value in the JSON must be a plain string — never a markdown link or citation like [text](url). A markdown link anywhere inside the JSON will break the import.
+
+Duration: ${durationLabel} — ${totalDays} Day${totalDays !== 1 ? "s" : ""}
+Destinations (in order, with nights at each): ${destinationsLine}
+
+Spend the itinerary days in the order the destinations are listed, matching the night count at each one.
+
+Return exactly this JSON shape:
+
+{
+  "days": [
+    {
+      "day": 1,
+      "title": "<day title, under 10 words>",
+      "description": "<day description, 35-55 words — see style example below>",
+      "highlights": ["<short activity/place name worth calling out, 2-4 per day>"]
+    }
+  ]
+}
+
+Style example for description:
+"Arrive at Kochi Airport/Railway Station and meet your driver for a scenic drive to Munnar. En route enjoy waterfalls, tea gardens, and misty valleys. Check in to your hotel and relax in the cool mountain climate. Evening free for leisure or nearby nature walks. (paid activity at your own cost)."
+
+Rules:
+- Exactly one "days" entry per day (${totalDays} total), numbered sequentially from 1.
+- Do not include hotel names, cab/vehicle details, or pricing — that's handled separately, manually, against our own inventory.
+- "highlights" are just short names/phrases (e.g. "Tea Garden Walk", "Eravikulam National Park") — not full sentences, not image URLs.
+- Keep titles and descriptions professional and vivid, matching the style example above — no fluff, no emojis.
+- One more time: no markdown links, no citations, no [text](url) formatting anywhere in the JSON — plain strings only. Wrap the whole response in a single \`\`\`json code block.`;
+}
+
+function AIItineraryDialog({
+  open, onOpenChange, stops, totalDays, durationLabel,
+  currentDays, packageId, durationId, routeId, onApplied,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  stops: RouteStop[];
+  totalDays: number;
+  durationLabel: string;
+  currentDays: DayData[];
+  packageId: number;
+  durationId: number;
+  routeId: number;
+  onApplied: () => void;
+}) {
+  const [jsonInput, setJsonInput] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  function copyPrompt() {
+    navigator.clipboard.writeText(buildAIItineraryPrompt(stops, totalDays, durationLabel));
+    toast.success("Prompt copied — paste it into ChatGPT, then paste the JSON it gives you back here.");
+  }
+
+  async function pasteJson() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast.error("Clipboard is empty");
+        return;
+      }
+      setJsonInput(text);
+      setParseError(null);
+    } catch {
+      toast.error("Couldn't read the clipboard — your browser may need permission. Paste manually instead.");
+    }
+  }
+
+  async function apply() {
+    let parsed: AIItineraryResponse;
+    try {
+      const cleaned = jsonInput.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch {
+      setParseError("That doesn't look like valid JSON — check the format and try again.");
+      return;
+    }
+    if (!parsed || !Array.isArray(parsed.days)) {
+      setParseError("Unexpected response shape — please try again.");
+      return;
+    }
+    setParseError(null);
+
+    setApplying(true);
+    let updated = 0;
+    try {
+      for (const src of parsed.days) {
+        const dayNum = src.day;
+        if (!dayNum || dayNum < 1 || dayNum > totalDays) continue;
+
+        // Overwrite mode: the AI's value wins whenever it provided one,
+        // falling back to whatever's already there only when it didn't.
+        const existing = currentDays.find((d) => d.day === dayNum);
+        const finalTitle = src.title?.trim() || existing?.title?.trim() || `Day ${dayNum}`;
+        const finalDescription = src.description?.trim() || existing?.description?.trim() || null;
+
+        let itineraryId = existing?.id ?? null;
+        const res = await handleUpsertDayMeta(packageId, durationId, routeId, dayNum, {
+          title: finalTitle,
+          description: finalDescription,
+        });
+        if (res.success) {
+          itineraryId = res.data.id;
+          updated++;
+        }
+
+        // Highlights become a single "info" note. If a previous AI run
+        // already left one on this day (an "info" note starting with our
+        // bullet marker), overwrite that same note instead of piling up a
+        // new one each time; otherwise add fresh.
+        if (itineraryId && src.highlights && src.highlights.length > 0) {
+          const message = src.highlights.filter((h) => h?.trim()).map((h) => `• ${h.trim()}`).join("\n");
+          if (message) {
+            const priorHighlightsNote = existing?.notes?.find((n) => n.type === "info" && n.message.startsWith("• "));
+            if (priorHighlightsNote) {
+              await handleUpdateNote(priorHighlightsNote.id, { message, type: "info", position: "bottom" }, packageId);
+            } else {
+              await handleAddNote(itineraryId, { message, type: "info", position: "bottom" }, packageId);
+            }
+          }
+        }
+      }
+
+      toast.success(updated > 0 ? `Updated ${updated} day${updated !== 1 ? "s" : ""} from the AI response.` : "No matching days found in that response.");
+      setJsonInput("");
+      onOpenChange(false);
+      onApplied();
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setParseError(null); }}>
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-dashboard-base-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center justify-center size-8 rounded-lg bg-dashboard-primary/10 text-dashboard-primary shrink-0">
+              <Wand2 size={16} />
+            </span>
+            <div>
+              <DialogTitle className="text-sm font-semibold">AI Itinerary Builder</DialogTitle>
+              <DialogDescription className="text-xs mt-0.5">
+                Copy the prompt into ChatGPT (or any LLM), then paste its JSON reply back here. This
+                overwrites each day&apos;s title, description and highlights note with what the AI
+                returns — hotels, cabs and catalog activities are untouched, add those manually.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="px-6 py-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-dashboard-base-content">Paste the JSON response here</span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={copyPrompt} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                <Copy size={11} /> Copy Prompt
+              </Button>
+              <Button variant="outline" size="sm" onClick={pasteJson} className="h-7 px-2.5 text-[11px] gap-1.5 border-dashboard-base-300 rounded-md">
+                <ClipboardPaste size={11} /> Paste
+              </Button>
+            </div>
+          </div>
+          <Textarea
+            value={jsonInput}
+            onChange={(e) => { setJsonInput(e.target.value); if (parseError) setParseError(null); }}
+            placeholder="Paste the JSON the AI gave you…"
+            rows={9}
+            className={cn(
+              "text-[11px] font-mono resize-none rounded-lg",
+              parseError
+                ? "border-dashboard-error focus-visible:ring-dashboard-error/20 focus-visible:border-dashboard-error"
+                : "border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary",
+            )}
+          />
+          {parseError && (
+            <div className="flex items-start gap-2 rounded-lg border border-dashboard-error/30 bg-dashboard-error/5 px-3 py-2">
+              <AlertTriangle size={13} className="mt-0.5 text-dashboard-error shrink-0" />
+              <p className="text-[11px] leading-relaxed text-dashboard-error">{parseError}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-dashboard-base-300 bg-dashboard-base-100">
+          <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)} disabled={applying} className="border-dashboard-base-300 rounded-md">
+            Cancel
+          </Button>
+          <Button
+            type="button" size="sm" onClick={apply} disabled={applying || !jsonInput.trim()}
+            className="gap-1.5 bg-dashboard-primary text-dashboard-primary-content hover:bg-dashboard-primary/90 rounded-md"
+          >
+            {applying ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+            {applying ? "Applying…" : "Apply to Itinerary"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Main Tab ───────────────────────────────────────────────────────────────
 
 export function ItineraryBuilderTab({ packageId, destinationId, durations, stayCategories: initialStayCategories }: Props) {
@@ -299,6 +537,7 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openDay, setOpenDay] = useState<DayData | null>(null);
   const [copyStop, setCopyStop] = useState<{ name: string; startDay: number; endDay: number } | null>(null);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
   const selectedDuration = durations.find((d) => d.id === selectedDurationId) ?? null;
   const selectedRoute = selectedDuration?.routes.find((r) => r.id === selectedRouteId) ?? null;
@@ -489,11 +728,24 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
                   : `${selectedDuration.days} days`
                 : "Days"}
             </p>
-            {days && (
-              <p className="text-[10px] text-dashboard-base-content/60">
-                Click a day to edit its itinerary
-              </p>
-            )}
+            <div className="flex items-center gap-3">
+              {days && (
+                <p className="text-[10px] text-dashboard-base-content/60">
+                  Click a day to edit its itinerary
+                </p>
+              )}
+              {days && selectedDuration && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1.5 text-xs border-dashboard-primary/40 text-dashboard-primary hover:bg-dashboard-primary/10"
+                  onClick={() => setAiDialogOpen(true)}
+                >
+                  <Wand2 className="h-3.5 w-3.5" /> AI Itinerary Builder
+                </Button>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -624,6 +876,22 @@ export function ItineraryBuilderTab({ packageId, destinationId, durations, stayC
             setDays(updatedDays);
             setCopyStop(null);
           }}
+        />
+      )}
+
+      {/* AI Itinerary Builder dialog */}
+      {selectedDurationId && selectedRouteId && selectedDuration && days && (
+        <AIItineraryDialog
+          open={aiDialogOpen}
+          onOpenChange={setAiDialogOpen}
+          stops={selectedRoute?.stops ?? []}
+          totalDays={selectedDuration.days}
+          durationLabel={selectedDuration.label}
+          currentDays={days}
+          packageId={packageId}
+          durationId={selectedDurationId}
+          routeId={selectedRouteId}
+          onApplied={() => loadDays(selectedDurationId, selectedRouteId)}
         />
       )}
 
