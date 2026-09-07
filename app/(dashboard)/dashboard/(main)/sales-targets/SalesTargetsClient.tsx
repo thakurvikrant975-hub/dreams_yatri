@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Target, Users, UserRound, CheckCircle2 } from "lucide-react";
+import { Loader2, Target, Users, UserRound, Crown, UserX, CheckCircle2 } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { cn } from "@/app/lib/utils";
 import {
   setMemberTarget, setTeamTarget,
   type SalesTargetsPageData, type MemberTargetRow, type TeamTargetRow,
@@ -26,13 +27,17 @@ function num(v: string): number | null {
  * AutoAssignSettingsDialog's MemberRow: responsive typing, no save on every
  * keystroke. */
 function TargetRow({
-  icon: Icon, title, subtitle, target, onSave,
+  icon: Icon, title, subtitle, target, onSave, indent,
 }: {
   icon: React.ElementType;
   title: string;
   subtitle?: string;
   target: { revenueTarget: number | null; conversionTarget: number | null };
   onSave: (values: { revenueTarget: number | null; conversionTarget: number | null }) => Promise<{ success: boolean; error?: string }>;
+  /** Nested under a team's own row — smaller icon, indented, no bottom
+   * border of its own so a run of execs reads as one group under the team
+   * row rather than as separate cards. */
+  indent?: boolean;
 }) {
   const [revenue, setRevenue] = useState(target.revenueTarget?.toString() ?? "");
   const [conversions, setConversions] = useState(target.conversionTarget?.toString() ?? "");
@@ -48,12 +53,18 @@ function TargetRow({
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 border-b border-dashboard-base-300 last:border-b-0">
-      <span className="shrink-0 flex items-center justify-center size-8 rounded-full bg-dashboard-primary/10 text-dashboard-primary">
-        <Icon className="size-4" />
+    <div className={cn(
+      "flex items-center gap-3 px-4 py-2.5 border-b border-dashboard-base-300 last:border-b-0",
+      indent && "pl-10 bg-dashboard-base-200/20",
+    )}>
+      <span className={cn(
+        "shrink-0 flex items-center justify-center rounded-full bg-dashboard-primary/10 text-dashboard-primary",
+        indent ? "size-6" : "size-8",
+      )}>
+        <Icon className={indent ? "size-3.5" : "size-4"} />
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-dashboard-base-content truncate">{title}</p>
+        <p className={cn("font-medium text-dashboard-base-content truncate", indent ? "text-xs" : "text-sm")}>{title}</p>
         {subtitle && <p className="text-xs text-dashboard-base-content/50 truncate">{subtitle}</p>}
       </div>
       <label className="shrink-0 flex flex-col items-center gap-0.5">
@@ -99,6 +110,51 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
   );
 }
 
+/** One team's card: its own target row, then every executive on that team
+ * (leader included) nested right below it — the "team wise" grouping the
+ * flat list used to lose. */
+function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; month: number }) {
+  return (
+    <div className="rounded-xl overflow-hidden bg-dashboard-base-100 border border-dashboard-base-300">
+      <div className="flex items-center gap-2 px-4 py-3 text-dashboard-neutral-content bg-dashboard-neutral">
+        <Users className="size-4" />
+        <p className="text-sm font-semibold">{team.name}</p>
+        {team.leaderName && (
+          <span className="flex items-center gap-1 text-xs opacity-75">
+            <Crown className="size-3" /> {team.leaderName}
+          </span>
+        )}
+        <span className="ml-auto text-xs opacity-75">
+          {team.members.length} member{team.members.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <TargetRow
+        icon={Users}
+        title="Team target"
+        target={team.target}
+        onSave={(values) => setTeamTarget(team.id, { year, month, ...values })}
+      />
+
+      {team.members.length === 0 ? (
+        <p className="px-4 py-4 pl-10 text-xs text-dashboard-base-content/45">No executives on this team yet.</p>
+      ) : (
+        team.members.map((m) => (
+          <TargetRow
+            key={m.id}
+            icon={UserRound}
+            title={m.name}
+            subtitle={`${m.employeeId}${m.roleName ? ` · ${m.roleName}` : ""}`}
+            target={m.target}
+            onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
+            indent
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
 export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
   const router = useRouter();
   const [year, setYear] = useState(data.year);
@@ -138,32 +194,21 @@ export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
         </Select>
       </div>
 
-      <Section title="Sales Teams" icon={Users}>
-        {data.teams.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-dashboard-base-content/45">
-            No sales teams yet — create one from Sales Teams first.
-          </p>
-        ) : (
-          data.teams.map((t: TeamTargetRow) => (
-            <TargetRow
-              key={t.id}
-              icon={Users}
-              title={t.name}
-              subtitle={`${t.memberCount} member${t.memberCount !== 1 ? "s" : ""}${t.leaderName ? ` · led by ${t.leaderName}` : ""}`}
-              target={t.target}
-              onSave={(values) => setTeamTarget(t.id, { year, month, ...values })}
-            />
-          ))
-        )}
-      </Section>
+      {data.teams.length === 0 ? (
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-8 text-center text-sm text-dashboard-base-content/45">
+          No sales teams yet — create one from Sales Teams first.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {data.teams.map((t: TeamTargetRow) => (
+            <TeamGroup key={t.id} team={t} year={year} month={month} />
+          ))}
+        </div>
+      )}
 
-      <Section title="Sales Executives" icon={UserRound}>
-        {data.members.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-dashboard-base-content/45">
-            No sales executives found.
-          </p>
-        ) : (
-          data.members.map((m: MemberTargetRow) => (
+      {data.unassigned.length > 0 && (
+        <Section title="Not yet on a team" icon={UserX}>
+          {data.unassigned.map((m: MemberTargetRow) => (
             <TargetRow
               key={m.id}
               icon={UserRound}
@@ -172,9 +217,9 @@ export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
               target={m.target}
               onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
             />
-          ))
-        )}
-      </Section>
+          ))}
+        </Section>
+      )}
 
       <p className="flex items-center gap-1.5 text-[11px] text-dashboard-base-content/45">
         <Target className="size-3" />
