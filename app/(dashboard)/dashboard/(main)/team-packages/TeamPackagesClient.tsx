@@ -1,0 +1,215 @@
+import { Suspense } from "react";
+import { ShieldCheck } from "lucide-react";
+import type { Prisma } from "@/app/generated/prisma";
+import { db } from "@/app/lib/db";
+import { getPackageReviewScope } from "@/app/lib/sales-teams/leader-scope";
+import { TeamPackagesTable, type PackageRow, type PackageStats } from "./TeamPackagesTable";
+import {
+    Breadcrumb, BreadcrumbItem,
+    BreadcrumbLink, BreadcrumbList,
+    BreadcrumbPage, BreadcrumbSeparator,
+} from "../components/ui/breadcrumb";
+import { Skeleton } from "../components/ui/skeleton";
+import { PageHeader } from "../components/dashboard/PageHeader";
+
+type Filter = "all" | "pending" | "verified" | "rejected";
+
+function TableSkeleton() {
+    return (
+        <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="bg-muted/50 px-4 py-3 grid grid-cols-6 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} className="h-4" />
+                ))}
+            </div>
+            {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="px-4 py-3 grid grid-cols-6 gap-4 border-t items-center">
+                    <Skeleton className="h-10 w-32" />
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-4 w-20" />
+                    <Skeleton className="h-5 w-16 mx-auto" />
+                    <Skeleton className="h-7 w-20 ml-auto" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/** Not leading a team yet (and not a Sales Manager) — same empty state
+ * shape as TeamLeaderAnalytics' "My Team" tab when unassigned. */
+function NoScopeState() {
+    return (
+        <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 p-8 text-center text-sm text-dashboard-base-content/60">
+            You&apos;re not currently set as the leader of a SalesTeam — ask your admin to assign you before this page can show your team&apos;s packages.
+        </div>
+    );
+}
+
+async function PackagesData({
+    page, limit, search, filter,
+}: {
+    page: number;
+    limit: number;
+    search: string;
+    filter: Filter;
+}) {
+    const scope = await getPackageReviewScope();
+    if (scope.kind === "none") return <NoScopeState />;
+
+    const now        = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const searchWhere: Prisma.custom_packagesWhereInput = search
+        ? {
+            OR: [
+                { title:       { contains: search, mode: "insensitive" } },
+                { destination: { contains: search, mode: "insensitive" } },
+                { query: { name:  { contains: search, mode: "insensitive" } } },
+                { query: { phone: { contains: search, mode: "insensitive" } } },
+            ],
+        }
+        : {};
+
+    // Same "everything that's ever reached costing" definition Verify
+    // Packages uses — readyAt stays set across the whole review history.
+    const scopeWhere: Prisma.custom_packagesWhereInput =
+        scope.kind === "team" ? { builtBy: { in: scope.memberIds } } : {};
+
+    const baseWhere: Prisma.custom_packagesWhereInput = {
+        readyAt: { not: null },
+        ...scopeWhere,
+        ...searchWhere,
+    };
+
+    const filterWhere: Prisma.custom_packagesWhereInput =
+        filter === "pending"  ? { status: "READY", verified: false } :
+        filter === "verified" ? { verified: true } :
+        filter === "rejected" ? { rejectedAt: { not: null } } :
+        {};
+
+    const where: Prisma.custom_packagesWhereInput = { ...baseWhere, ...filterWhere };
+
+    const [rows, totalCount, pending, verified, rejected, verifiedToday, total] = await Promise.all([
+        db.custom_packages.findMany({
+            where,
+            orderBy: { readyAt: "desc" },
+            skip: (page - 1) * limit,
+            take: limit,
+            select: {
+                id: true, title: true, destination: true,
+                totalDays: true, totalNights: true, travelDate: true,
+                adults: true, children: true, infants: true,
+                pricePerPerson: true, totalPrice: true, currency: true,
+                status: true, builtByName: true, sentAt: true,
+                readyAt: true, readyByName: true, readyNote: true,
+                viewedAt: true, viewCount: true,
+                verified: true, verifiedAt: true, verifiedByName: true,
+                rejectedAt: true, rejectedByName: true,
+                rejectionReason: { select: { label: true } },
+                query: { select: { id: true, name: true, phone: true, email: true } },
+            },
+        }),
+        db.custom_packages.count({ where }),
+        db.custom_packages.count({ where: { ...baseWhere, status: "READY", verified: false } }),
+        db.custom_packages.count({ where: { ...baseWhere, verified: true } }),
+        db.custom_packages.count({ where: { ...baseWhere, rejectedAt: { not: null } } }),
+        db.custom_packages.count({ where: { ...baseWhere, verifiedAt: { gte: todayStart } } }),
+        db.custom_packages.count({ where: baseWhere }),
+    ]);
+
+    const stats: PackageStats = { total, pending, verified, rejected, verifiedToday };
+
+    const packages: PackageRow[] = rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        destination: r.destination,
+        totalDays: r.totalDays,
+        totalNights: r.totalNights,
+        travelDate: r.travelDate,
+        adults: r.adults,
+        children: r.children,
+        infants: r.infants,
+        pricePerPerson: r.pricePerPerson,
+        totalPrice: r.totalPrice,
+        currency: r.currency,
+        status: r.status,
+        builtByName: r.builtByName,
+        sentAt: r.sentAt,
+        readyAt: r.readyAt,
+        readyByName: r.readyByName,
+        readyNote: r.readyNote,
+        viewedAt: r.viewedAt,
+        viewCount: r.viewCount,
+        verified: r.verified,
+        verifiedAt: r.verifiedAt,
+        verifiedByName: r.verifiedByName,
+        rejectedAt: r.rejectedAt,
+        rejectedByName: r.rejectedByName,
+        rejectionReasonLabel: r.rejectionReason?.label ?? null,
+        client: r.query,
+    }));
+
+    return (
+        <TeamPackagesTable
+            packages={packages}
+            stats={stats}
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(totalCount / limit))}
+            totalCount={totalCount}
+            limit={limit}
+            search={search}
+            filter={filter}
+            scopeLabel={scope.kind === "team" ? scope.teamName : "All sales executives"}
+        />
+    );
+}
+
+export default function TeamPackagesClient({
+    page, limit, search, filter,
+}: {
+    page: number;
+    limit: number;
+    search: string;
+    filter: Filter;
+}) {
+    return (
+        <div className="space-y-6">
+            <Breadcrumb>
+                <BreadcrumbList>
+                    <BreadcrumbItem>
+                        <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator />
+                    <BreadcrumbItem>
+                        <BreadcrumbPage>Team Packages</BreadcrumbPage>
+                    </BreadcrumbItem>
+                </BreadcrumbList>
+            </Breadcrumb>
+
+            <PageHeader
+                title="Team Packages"
+                description="Packages your team has sent to costing — open one to correct it or follow up on its review"
+                icon={ShieldCheck}
+            />
+
+            <Suspense
+                fallback={
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-4 gap-4">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="rounded-xl border bg-card p-4 space-y-2">
+                                    <Skeleton className="h-3 w-16" />
+                                    <Skeleton className="h-7 w-10" />
+                                </div>
+                            ))}
+                        </div>
+                        <TableSkeleton />
+                    </div>
+                }
+            >
+                <PackagesData page={page} limit={limit} search={search} filter={filter} />
+            </Suspense>
+        </div>
+    );
+}

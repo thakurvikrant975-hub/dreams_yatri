@@ -36,3 +36,42 @@ export async function getSubmitterTeam(memberId: string): Promise<{ teamId: stri
   });
   return { teamId: member?.salesTeamId ?? null, teamName: member?.salesTeam?.name ?? null };
 }
+
+/** Who gets to see what in the Team Packages / Team Hotel Requests queues —
+ * "team" (a Team Leader, scoped to the SalesTeam they lead), "company" (a
+ * Sales Manager, no scoping — same "see everyone's" access they already
+ * have inside workspace-caps.ts, just extended to these two list pages), or
+ * "none" (role doesn't match either, or a Team Leader not currently leading
+ * a team). Role is matched the same case-insensitive substring way as
+ * workspace-caps.ts's workspaceRoleOf, so this stays in sync with who
+ * actually gets costing-grade edit rights once they open a package. */
+export type PackageReviewScope =
+  | { kind: "team"; teamId: string; teamName: string; memberIds: string[] }
+  | { kind: "company" }
+  | { kind: "none" };
+
+export async function getPackageReviewScope(): Promise<PackageReviewScope> {
+  const session = await dashboardAuth();
+  if (!session?.user?.email) return { kind: "none" };
+
+  const me = await db.teamMember.findUnique({
+    where: { email: session.user.email },
+    select: { teamRole: { select: { name: true } } },
+  });
+  const roleName = (me?.teamRole?.name ?? "").trim().toLowerCase();
+
+  if (roleName.includes("sales manager")) return { kind: "company" };
+
+  if (roleName.includes("team leader")) {
+    const scope = await getLeaderScope();
+    if (!scope?.ledTeamId) return { kind: "none" };
+    const team = await db.salesTeam.findUnique({
+      where: { id: scope.ledTeamId },
+      select: { id: true, name: true, members: { select: { id: true } } },
+    });
+    if (!team) return { kind: "none" };
+    return { kind: "team", teamId: team.id, teamName: team.name, memberIds: team.members.map((m) => m.id) };
+  }
+
+  return { kind: "none" };
+}
