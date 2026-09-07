@@ -13,9 +13,20 @@ import { COMPANY } from "@/app/lib/company";
 // treatment in the layout.
 
 /** Grid lines, matching the voucher's tables: a neutral rule in the body and a
- *  lighter primary one inside the header, where the fill is already primary. */
-const CELL_BORDER = "border border-neutral-200/80";
+ *  lighter primary one inside the header, where the fill is already primary.
+ *
+ *  neutral-300, not neutral-200 at 80%. This is the one document here that is
+ *  read as a grid — which cell a figure sits in is the whole point — and the
+ *  old rule computed to roughly 1.2:1 against the white sheet, faint enough on
+ *  a phone screen or a printed page that the table read as floating text. A
+ *  step down the scale is ~1.4:1: still a hairline, but one you can see. */
+const CELL_BORDER = "border border-neutral-300";
 const HEAD_BORDER = "border border-primary-300/70";
+
+/** Section rules — the footer hairline and the one above Balance due. Same
+ *  reasoning as the cell borders: these separate a total from what it totals,
+ *  so they have to survive both a 0.45x phone render and a laser printer. */
+const RULE = "border-neutral-300";
 
 /** Same chrome as the voucher's TableFrame, so an invoice and a voucher for the
  *  same booking read as two pages of one document set. */
@@ -209,7 +220,7 @@ export default function InvoiceDocument(props: InvoiceDocumentProps) {
             <div className="px-10 mt-5 flex justify-end">
                 <div className="w-64 text-sm">
                     <div className="flex justify-between py-1"><span className="text-neutral-600/90">Amount paid</span><span className="font-medium text-neutral-900">{formatPaiseRoundedUp(v.paid)}</span></div>
-                    <div className="flex justify-between py-1 border-t border-neutral-200"><span className="text-neutral-600/90">Balance due</span><span className="font-semibold text-neutral-900">{formatPaiseRoundedUp(v.balance)}</span></div>
+                    <div className={`flex justify-between py-1 border-t ${RULE}`}><span className="text-neutral-600/90">Balance due</span><span className="font-semibold text-neutral-900">{formatPaiseRoundedUp(v.balance)}</span></div>
                 </div>
             </div>
 
@@ -228,7 +239,7 @@ export default function InvoiceDocument(props: InvoiceDocumentProps) {
             {/* ── Footer ── */}
             <p className="px-10 mt-8 text-xs text-neutral-600/90 text-center">This is a computer-generated invoice and does not require a signature.</p>
 
-            <div className="mt-8 border-t border-neutral-200 px-10 py-5 flex items-center justify-between text-[11px] text-neutral-600/90">
+            <div className={`mt-8 border-t ${RULE} px-10 py-5 flex items-center justify-between text-[11px] text-neutral-600/90`}>
                 <span>{COMPANY.email} · {COMPANY.phone}</span>
                 <DyLogo className="h-4 text-primary-500" />
             </div>
