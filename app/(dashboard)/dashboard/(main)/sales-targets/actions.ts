@@ -177,17 +177,30 @@ export async function setMemberTarget(
   const { year, month, revenueTarget, conversionTarget } = parsed.data;
 
   try {
+    const existing = await db.salesTarget.findUnique({
+      where: { teamMemberId_year_month: { teamMemberId, year, month } },
+      select: { revenueTarget: true, conversionTarget: true },
+    });
+
     await db.salesTarget.upsert({
       where: { teamMemberId_year_month: { teamMemberId, year, month } },
       create: { teamMemberId, year, month, revenueTarget, conversionTarget, setById: user.id, setByName: user.name ?? null },
       update: { revenueTarget, conversionTarget, setById: user.id, setByName: user.name ?? null },
     });
 
-    await createLog({
-      action: "UPDATE", entity: "SalesTarget", entityId: teamMemberId,
-      newData: { year, month, revenueTarget, conversionTarget },
-      metadata: { operation: "set_member_target" }, severity: "LOW",
-    });
+    // Only worth a history entry when a value actually moved — every field
+    // blur calls save(), including one where nothing was typed, and a "12
+    // -> 12" line would be noise in the timeline rather than history.
+    if (!existing || existing.revenueTarget !== revenueTarget || existing.conversionTarget !== conversionTarget) {
+      const member = await db.teamMember.findUnique({ where: { id: teamMemberId }, select: { name: true } });
+      await createLog({
+        action: "UPDATE", entity: "SalesTarget", entityId: teamMemberId, entitySlug: member?.name ?? undefined,
+        previousData: { revenueTarget: existing?.revenueTarget ?? null, conversionTarget: existing?.conversionTarget ?? null },
+        newData: { revenueTarget, conversionTarget },
+        metadata: { operation: "set_member_target", year, month, subjectName: member?.name ?? null },
+        severity: "LOW",
+      });
+    }
 
     revalidatePath("/dashboard/sales-targets");
     revalidatePath("/dashboard/analytics");
@@ -214,17 +227,27 @@ export async function setTeamTarget(
   const { year, month, revenueTarget, conversionTarget } = parsed.data;
 
   try {
+    const existing = await db.salesTarget.findUnique({
+      where: { salesTeamId_year_month: { salesTeamId, year, month } },
+      select: { revenueTarget: true, conversionTarget: true },
+    });
+
     await db.salesTarget.upsert({
       where: { salesTeamId_year_month: { salesTeamId, year, month } },
       create: { salesTeamId, year, month, revenueTarget, conversionTarget, setById: user.id, setByName: user.name ?? null },
       update: { revenueTarget, conversionTarget, setById: user.id, setByName: user.name ?? null },
     });
 
-    await createLog({
-      action: "UPDATE", entity: "SalesTarget", entityId: salesTeamId,
-      newData: { year, month, revenueTarget, conversionTarget },
-      metadata: { operation: "set_team_target" }, severity: "LOW",
-    });
+    if (!existing || existing.revenueTarget !== revenueTarget || existing.conversionTarget !== conversionTarget) {
+      const team = await db.salesTeam.findUnique({ where: { id: salesTeamId }, select: { name: true } });
+      await createLog({
+        action: "UPDATE", entity: "SalesTarget", entityId: salesTeamId, entitySlug: team?.name ?? undefined,
+        previousData: { revenueTarget: existing?.revenueTarget ?? null, conversionTarget: existing?.conversionTarget ?? null },
+        newData: { revenueTarget, conversionTarget },
+        metadata: { operation: "set_team_target", year, month, subjectName: team?.name ?? null },
+        severity: "LOW",
+      });
+    }
 
     revalidatePath("/dashboard/sales-targets");
     revalidatePath("/dashboard/analytics");
@@ -236,4 +259,48 @@ export async function setTeamTarget(
     });
     return { success: false, error: "Failed to set team target" };
   }
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+
+export type TargetHistoryEntry = {
+  id: string;
+  changedByName: string | null;
+  changedAt: Date;
+  previousRevenueTarget: number | null;
+  newRevenueTarget: number | null;
+  previousConversionTarget: number | null;
+  newConversionTarget: number | null;
+};
+
+/** Every change to one subject's (member or team) target for one month, most
+ * recent first — reuses the same ActivityLog every other mutation in this
+ * app already writes to, rather than a bespoke history table, since it
+ * already captures who/when and a before/after diff. */
+export async function getTargetHistory(subjectId: string, year: number, month: number): Promise<TargetHistoryEntry[]> {
+  const logs = await db.activityLog.findMany({
+    where: { entity: "SalesTarget", entityId: subjectId, status: "SUCCESS" },
+    orderBy: { actionAt: "desc" },
+    take: 50,
+    select: { id: true, userName: true, actionAt: true, previousData: true, newData: true, metadata: true },
+  });
+
+  return logs
+    .filter((l) => {
+      const meta = l.metadata as { year?: number; month?: number } | null;
+      return meta?.year === year && meta?.month === month;
+    })
+    .map((l) => {
+      const prev = (l.previousData as { revenueTarget?: number | null; conversionTarget?: number | null } | null) ?? {};
+      const next = (l.newData as { revenueTarget?: number | null; conversionTarget?: number | null } | null) ?? {};
+      return {
+        id: l.id,
+        changedByName: l.userName,
+        changedAt: l.actionAt,
+        previousRevenueTarget: prev.revenueTarget ?? null,
+        newRevenueTarget: next.revenueTarget ?? null,
+        previousConversionTarget: prev.conversionTarget ?? null,
+        newConversionTarget: next.conversionTarget ?? null,
+      };
+    });
 }

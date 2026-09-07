@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Target, Users, UserRound, Crown, UserX, CheckCircle2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Loader2, Target, Users, UserRound, Crown, UserX, CheckCircle2, History } from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/app/components/ui/popover";
 import { cn } from "@/app/lib/utils";
 import {
-  setMemberTarget, setTeamTarget,
-  type SalesTargetsPageData, type MemberTargetRow, type TeamTargetRow,
+  setMemberTarget, setTeamTarget, getTargetHistory,
+  type SalesTargetsPageData, type MemberTargetRow, type TeamTargetRow, type TargetHistoryEntry,
 } from "./actions";
 
 const MONTHS = [
@@ -23,11 +25,100 @@ function num(v: string): number | null {
   return v.trim() === "" || Number.isNaN(n) ? null : Math.max(0, n);
 }
 
+const fmtInr = (n: number | null) => n === null ? "—" : `₹${n.toLocaleString("en-IN")}`;
+
+/** One change to one row's target, e.g. "Bookings target 12 → 16" — the
+ * example that prompted this whole timeline. Two separate lines when both
+ * revenue and bookings moved in the same save. */
+function historyLines(e: TargetHistoryEntry): string[] {
+  const lines: string[] = [];
+  if (e.previousConversionTarget !== e.newConversionTarget) {
+    lines.push(
+      e.previousConversionTarget === null ? `Set bookings target to ${e.newConversionTarget ?? "—"}`
+      : e.newConversionTarget === null ? `Cleared bookings target (was ${e.previousConversionTarget})`
+      : `Bookings target ${e.previousConversionTarget} → ${e.newConversionTarget}`,
+    );
+  }
+  if (e.previousRevenueTarget !== e.newRevenueTarget) {
+    lines.push(
+      e.previousRevenueTarget === null ? `Set revenue target to ${fmtInr(e.newRevenueTarget)}`
+      : e.newRevenueTarget === null ? `Cleared revenue target (was ${fmtInr(e.previousRevenueTarget)})`
+      : `Revenue target ${fmtInr(e.previousRevenueTarget)} → ${fmtInr(e.newRevenueTarget)}`,
+    );
+  }
+  return lines;
+}
+
+/** Fetches on first open rather than up front for every row on the page —
+ * most rows are never inspected, and this is a secondary/audit view, not
+ * the primary thing the page renders. Refetches after this row's own save
+ * so the change just made shows up without having to close and reopen. */
+function HistoryButton({ subjectId, year, month, refreshKey }: { subjectId: string; year: number; month: number; refreshKey: number }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [entries, setEntries] = useState<TargetHistoryEntry[] | null>(null);
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (next) {
+      setLoading(true);
+      getTargetHistory(subjectId, year, month)
+        .then(setEntries)
+        .finally(() => setLoading(false));
+    }
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => { handleOpenChange(next); }}
+      key={refreshKey /* force a fresh fetch next open after a save */}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          title="Change history"
+          className="shrink-0 flex items-center justify-center size-6 rounded-full text-dashboard-base-content/40 hover:bg-dashboard-base-200 hover:text-dashboard-base-content transition-colors cursor-pointer"
+        >
+          <History className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end">
+        <div className="border-b border-dashboard-base-300 px-3 py-2">
+          <p className="text-xs font-semibold text-dashboard-base-content">Target history</p>
+        </div>
+        <div className="max-h-72 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="size-4 animate-spin text-dashboard-base-content/40" />
+            </div>
+          ) : !entries || entries.length === 0 ? (
+            <p className="px-3 py-6 text-center text-xs text-dashboard-base-content/45">No changes yet this month.</p>
+          ) : (
+            <ul className="divide-y divide-dashboard-base-300">
+              {entries.map((e) => (
+                <li key={e.id} className="px-3 py-2 space-y-0.5">
+                  {historyLines(e).map((line, i) => (
+                    <p key={i} className="text-xs text-dashboard-base-content">{line}</p>
+                  ))}
+                  <p className="text-[11px] text-dashboard-base-content/45">
+                    {e.changedByName ?? "Someone"} · {formatDistanceToNow(new Date(e.changedAt), { addSuffix: true })}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** One row's local edit state, saved on blur — same convention as
  * AutoAssignSettingsDialog's MemberRow: responsive typing, no save on every
  * keystroke. */
 function TargetRow({
-  icon: Icon, title, subtitle, target, onSave, indent,
+  icon: Icon, title, subtitle, target, onSave, indent, subjectId, year, month,
 }: {
   icon: React.ElementType;
   title: string;
@@ -38,18 +129,26 @@ function TargetRow({
    * border of its own so a run of execs reads as one group under the team
    * row rather than as separate cards. */
   indent?: boolean;
+  subjectId: string;
+  year: number;
+  month: number;
 }) {
   const [revenue, setRevenue] = useState(target.revenueTarget?.toString() ?? "");
   const [conversions, setConversions] = useState(target.conversionTarget?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(0);
+  const [historyKey, setHistoryKey] = useState(0);
 
   async function save() {
     setSaving(true);
     const result = await onSave({ revenueTarget: num(revenue), conversionTarget: num(conversions) });
     setSaving(false);
-    if (result.success) setSavedAt(Date.now());
-    else toast.error(result.error ?? "Failed to save target");
+    if (result.success) {
+      setSavedAt(Date.now());
+      setHistoryKey((k) => k + 1);
+    } else {
+      toast.error(result.error ?? "Failed to save target");
+    }
   }
 
   return (
@@ -94,6 +193,7 @@ function TargetRow({
           ? <Loader2 className="size-3.5 animate-spin text-dashboard-base-content/40" />
           : savedAt > 0 && <CheckCircle2 className="size-3.5 text-dashboard-success" />}
       </div>
+      <HistoryButton subjectId={subjectId} year={year} month={month} refreshKey={historyKey} />
     </div>
   );
 }
@@ -134,6 +234,9 @@ function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; m
         title="Team target"
         target={team.target}
         onSave={(values) => setTeamTarget(team.id, { year, month, ...values })}
+        subjectId={team.id}
+        year={year}
+        month={month}
       />
 
       {team.members.length === 0 ? (
@@ -147,6 +250,9 @@ function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; m
             subtitle={`${m.employeeId}${m.roleName ? ` · ${m.roleName}` : ""}`}
             target={m.target}
             onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
+            subjectId={m.id}
+            year={year}
+            month={month}
             indent
           />
         ))
@@ -216,6 +322,9 @@ export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
               subtitle={`${m.employeeId}${m.roleName ? ` · ${m.roleName}` : ""}`}
               target={m.target}
               onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
+              subjectId={m.id}
+              year={year}
+              month={month}
             />
           ))}
         </Section>
