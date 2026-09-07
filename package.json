@@ -16,6 +16,8 @@
     "seed:sales-test:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/seed-sales-workflow-test.ts",
     "seed:custom-pay-test": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/seed-custom-package-payment-test.ts",
     "seed:custom-pay-test:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/seed-custom-package-payment-test.ts",
+    "seed:test-exec": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/seed-test-sales-exec.ts",
+    "seed:test-exec:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/seed-test-sales-exec.ts",
     "verify:test-skus": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/verify-test-payment-skus.ts",
     "verify:test-skus:prod": "tsx --conditions=react-server --env-file=.env --env-file=.env.production.local scripts/verify-test-payment-skus.ts",
     "reindex:locations": "tsx --env-file=.env scripts/reindex-locations.ts",

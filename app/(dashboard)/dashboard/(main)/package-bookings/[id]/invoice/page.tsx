@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/app/lib/db";
 import InvoiceDocument from "@/app/components/invoice/InvoiceDocument";
+import InvoiceFit from "@/app/components/invoice/InvoiceFit";
 import { INVOICE_BOOKING_SELECT } from "@/app/lib/invoice";
 import PrintInvoiceButton from "./PrintInvoiceButton";
 
@@ -23,7 +24,7 @@ export default async function BookingInvoicePage({ params }: { params: Promise<{
     return (
         <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
             <style>{`@media print { .no-print { display: none !important; } @page { margin: 12mm; } }`}</style>
-            <InvoiceDocument booking={booking} />
+            <InvoiceFit><InvoiceDocument booking={booking} /></InvoiceFit>
             <PrintInvoiceButton />
         </div>
     );

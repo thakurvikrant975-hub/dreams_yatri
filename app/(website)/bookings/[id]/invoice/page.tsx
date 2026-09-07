@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { db } from '@/app/lib/db';
 import { getAuthenticatedUser } from '@/app/lib/functions/getAuthenticatedUser';
 import InvoiceDocument from '@/app/components/invoice/InvoiceDocument';
+import InvoiceFit from '@/app/components/invoice/InvoiceFit';
 import { INVOICE_BOOKING_SELECT } from '@/app/lib/invoice';
 import PrintButton from '../PrintButton';
 import AutoPrint from './AutoPrint';
@@ -27,7 +28,7 @@ export default async function InvoicePage({ params, searchParams }: { params: Pr
         <main className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
             {autoPrint && <AutoPrint />}
             <style>{`@media print { .no-print { display:none !important } @page { margin: 12mm } }`}</style>
-            <InvoiceDocument booking={booking} />
+            <InvoiceFit><InvoiceDocument booking={booking} /></InvoiceFit>
             <PrintButton label="Print / Save invoice as PDF" />
         </main>
     );
