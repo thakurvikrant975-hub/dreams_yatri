@@ -82,11 +82,63 @@ export async function createBookingFromCustomPackage(params: {
     const thisPackageUrl = `/custom-package/${cp.id}`;
     const existing = await db.booking.findUnique({
         where: { sourceQueryId: query.id },
-        select: { id: true, userId: true, bookingNumber: true, packageUrl: true },
+        select: {
+            id: true, userId: true, bookingNumber: true, packageUrl: true,
+            // What separates a draft from a sale — see the takeover below.
+            paymentStatus: true, paidAmount: true,
+        },
     });
     if (existing) {
         if (existing.userId !== userId) {
-            return { success: false, reason: "invalid", message: "Booking belongs to another user." };
+            // ── Someone else got here first. Whether that matters depends
+            //    entirely on whether they paid.
+            //
+            // A share link is forwarded — a family thread, a group of friends
+            // deciding together. Several people open it and one of them taps
+            // Book to see what happens. That used to claim the trip for good:
+            // Booking.sourceQueryId is @unique, so the first click owned the
+            // quote and everyone else, including whoever was actually going to
+            // pay, hit "Booking belongs to another user" with no way past it
+            // and nothing in the UI to clear it.
+            //
+            // The claim belongs to the money, not to the click. An unpaid
+            // draft is just someone who looked, so it is handed over.
+            const settled = existing.paymentStatus !== "PENDING" || Number(existing.paidAmount) > 0;
+            if (settled) {
+                return {
+                    success: false,
+                    reason: "invalid",
+                    message: `This trip has already been booked and paid for (${existing.bookingNumber}). If someone in your group paid, ask them to share it with you — or contact your travel manager.`,
+                };
+            }
+
+            // A compare-and-swap, not just a guarded write. Matching on the
+            // owner we read a moment ago is what makes two people pressing
+            // Book at the same instant resolve to one winner: without it both
+            // updates land, the last one silently wins, and the other party
+            // walks on to an owner-scoped payment page that tells them the
+            // booking does not exist. paidAmount/paymentStatus stay in the
+            // predicate too, so a capture landing mid-flight also blocks it.
+            const taken = await db.booking.updateMany({
+                where: {
+                    id: existing.id,
+                    userId: existing.userId,
+                    paymentStatus: "PENDING",
+                    paidAmount: 0,
+                },
+                data: { userId },
+            });
+            if (taken.count === 0) {
+                return {
+                    success: false,
+                    reason: "invalid",
+                    message: `This trip has just been booked by someone else (${existing.bookingNumber}). Please refresh, or contact your travel manager.`,
+                };
+            }
+            // Any gateway order the previous holder left open stays on the
+            // booking. It was never captured, so it is worth nothing — and if
+            // it somehow is captured later, reconcile credits it to this same
+            // booking, which is the trip it was always paying for.
         }
         if (existing.packageUrl && existing.packageUrl !== thisPackageUrl) {
             return {
