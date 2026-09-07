@@ -47,12 +47,16 @@ function NoScopeState() {
 }
 
 async function PackagesData({
-    page, limit, search, filter,
+    page, limit, search, filter, destination, from, to, minPrice,
 }: {
     page: number;
     limit: number;
     search: string;
     filter: Filter;
+    destination: string;
+    from: string;
+    to: string;
+    minPrice: number | null;
 }) {
     const scope = await getPackageReviewScope();
     if (scope.kind === "none") return <NoScopeState />;
@@ -88,9 +92,22 @@ async function PackagesData({
         filter === "rejected" ? { rejectedAt: { not: null } } :
         {};
 
-    const where: Prisma.custom_packagesWhereInput = { ...baseWhere, ...filterWhere };
+    const destinationWhere: Prisma.custom_packagesWhereInput = destination ? { destination } : {};
 
-    const [rows, totalCount, pending, verified, rejected, verifiedToday, total] = await Promise.all([
+    // Filters "when it reached costing" — the same instant the queue's own
+    // "Sent / Ready" column and default sort already key off.
+    const dateWhere: Prisma.custom_packagesWhereInput =
+        (from || to)
+            ? { readyAt: { gte: from ? new Date(`${from}T00:00:00+05:30`) : undefined, lte: to ? new Date(`${to}T23:59:59.999+05:30`) : undefined } }
+            : {};
+
+    const priceWhere: Prisma.custom_packagesWhereInput = minPrice !== null ? { totalPrice: { gte: minPrice } } : {};
+
+    const where: Prisma.custom_packagesWhereInput = {
+        ...baseWhere, ...filterWhere, ...destinationWhere, ...dateWhere, ...priceWhere,
+    };
+
+    const [rows, totalCount, pending, verified, rejected, verifiedToday, total, destinationRows] = await Promise.all([
         db.custom_packages.findMany({
             where,
             orderBy: { readyAt: "desc" },
@@ -116,9 +133,19 @@ async function PackagesData({
         db.custom_packages.count({ where: { ...baseWhere, rejectedAt: { not: null } } }),
         db.custom_packages.count({ where: { ...baseWhere, verifiedAt: { gte: todayStart } } }),
         db.custom_packages.count({ where: baseWhere }),
+        // The full universe of destinations this scope has ever sent to
+        // costing — independent of the other filters, so picking one
+        // destination doesn't shrink the list of destinations to pick from.
+        db.custom_packages.findMany({
+            where: baseWhere,
+            distinct: ["destination"],
+            select: { destination: true },
+            orderBy: { destination: "asc" },
+        }),
     ]);
 
     const stats: PackageStats = { total, pending, verified, rejected, verifiedToday };
+    const destinationOptions = destinationRows.map((r) => r.destination).filter(Boolean);
 
     const packages: PackageRow[] = rows.map((r) => ({
         id: r.id,
@@ -160,18 +187,27 @@ async function PackagesData({
             limit={limit}
             search={search}
             filter={filter}
+            destination={destination}
+            from={from}
+            to={to}
+            minPrice={minPrice}
+            destinationOptions={destinationOptions}
             scopeLabel={scope.kind === "team" ? scope.teamName : "All sales executives"}
         />
     );
 }
 
 export default function TeamPackagesClient({
-    page, limit, search, filter,
+    page, limit, search, filter, destination, from, to, minPrice,
 }: {
     page: number;
     limit: number;
     search: string;
     filter: Filter;
+    destination: string;
+    from: string;
+    to: string;
+    minPrice: number | null;
 }) {
     return (
         <div className="space-y-6">
@@ -208,7 +244,7 @@ export default function TeamPackagesClient({
                     </div>
                 }
             >
-                <PackagesData page={page} limit={limit} search={search} filter={filter} />
+                <PackagesData page={page} limit={limit} search={search} filter={filter} destination={destination} from={from} to={to} minPrice={minPrice} />
             </Suspense>
         </div>
     );
