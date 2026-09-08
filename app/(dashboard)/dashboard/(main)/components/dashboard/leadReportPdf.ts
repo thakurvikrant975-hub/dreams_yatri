@@ -258,14 +258,32 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
     y += blockGap;
   });
 
-  // ── Leads by team member ──────────────────────────────────────────────
-  const memberTotal = data.byTeamMember.reduce((s, m) => s + m.value, 0) || 1;
-  sectionTitle("Leads by Team Member", "How many leads (in this range) are currently assigned to each sales exec");
+  // ── Leads handed out, per exec ────────────────────────────────────────
+  const handedOut = data.byTeamMember.reduce((s, m) => s + m.value, 0);
+  const memberTotal = handedOut || 1;
+  sectionTitle(
+    "Leads Assigned by Team Member",
+    "Handovers made in this range, counted on the day of the handover — a lead that came in last night and was passed on this morning counts today",
+  );
   drawTable(
     [{ header: "Team Member", width: 110 }, { header: "Leads Assigned", width: 45, align: "right" }, { header: "Share", width: 25, align: "right" }],
     data.byTeamMember,
     (m, ci) => (ci === 0 ? m.name : ci === 1 ? String(m.value) : `${Math.round((m.value / memberTotal) * 100)}%`),
   );
+
+  // Spelled out under the table rather than added to it as an "Unassigned"
+  // row: a lead nobody has been given is not a handover, and folding it in
+  // would make the total above stop matching the assignment mails.
+  ensureSpace(10);
+  y += 1;
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(120, 120, 120);
+  pdf.text(
+    `${handedOut} handed out in this range. Of the ${data.summary.totalLeads} leads received, ${data.summary.unassignedInRange} are still waiting for an owner.`,
+    MARGIN + 4.5, y, { maxWidth: CONTENT_WIDTH - 4.5 },
+  );
+  y += 5.5;
 
   // ── Footer — page numbers on every page, added last so the final count
   // is known. ──────────────────────────────────────────────────────────

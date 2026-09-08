@@ -7,6 +7,7 @@ import {
   Users, MapPin, PieChart as PieChartIcon, TrendingUp, Download, Phone, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
+import { istDayOffset } from "../../lead-report/ist";
 import { DateRangePicker } from "../ui/date-range-picker";
 import { StatCard, StatGrid } from "./Statcard";
 import { TrendAreaChart } from "./charts/TrendAreaChart";
@@ -22,13 +23,14 @@ type Props = {
   generatedByName?: string;
 };
 
+// IST calendar days. toISOString() gives the UTC date, so before 5:30am the
+// "Today" button asked for yesterday — and then didn't light up, because the
+// range it had just set no longer matched what it computed.
 function todayStr() {
-  return new Date().toISOString().split("T")[0];
+  return istDayOffset(0);
 }
 function daysAgoStr(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().split("T")[0];
+  return istDayOffset(-n);
 }
 function fmtTime(iso: string) {
   return new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
