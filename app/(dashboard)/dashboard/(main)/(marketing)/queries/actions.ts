@@ -9,6 +9,7 @@ import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -283,6 +284,20 @@ export async function getCurrentActor() {
     }
 
     return { actor, teamMemberId, teamMemberName };
+}
+
+/** Like getCurrentActor, but resolves to the effective member — the FSD's
+ * "View As" target when impersonating, otherwise the same real member. Use
+ * this for "what should I see" (whose queries, whose follow-ups) instead of
+ * getCurrentActor, which stays pinned to the real session for write
+ * attribution (who actually clicked the button) — same split the package
+ * review actions already use via getEffectiveMember/decideCapsFor. */
+export async function getEffectiveActor() {
+    const effective = await getEffectiveMember();
+    return {
+        teamMemberId:   effective?.member.id ?? null,
+        teamMemberName: effective?.member.name ?? null,
+    };
 }
 
 // ── Shared READ (also used by sales/actions.ts) ───────────────────────────────

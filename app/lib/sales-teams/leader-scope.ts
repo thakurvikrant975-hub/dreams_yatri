@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { dashboardAuth } from "@/app/lib/auth-dashboard";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 export type LeaderScope = {
   actorId: string;
@@ -13,12 +13,15 @@ export type LeaderScope = {
   ledTeamId: string | null;
 };
 
+/** Resolves against the effective member (the FSD's "View As" target, if any)
+ * rather than the raw session — so an FSD viewing as a Team Leader sees that
+ * leader's own scope instead of their own (real) one. See getEffectiveMember. */
 export async function getLeaderScope(): Promise<LeaderScope | null> {
-  const session = await dashboardAuth();
-  if (!session?.user?.email) return null;
+  const effective = await getEffectiveMember();
+  if (!effective) return null;
 
   const me = await db.teamMember.findUnique({
-    where: { email: session.user.email },
+    where: { id: effective.member.id },
     select: { id: true, name: true, ledSalesTeam: { select: { id: true } } },
   });
   if (!me) return null;
@@ -56,25 +59,15 @@ export type PackageReviewScope =
  * Manager"-style variant stays in sync across every feature that checks
  * for this role instead of drifting between separate exact-match lists. */
 export async function isSalesManagerRole(): Promise<boolean> {
-  const session = await dashboardAuth();
-  if (!session?.user?.email) return false;
-
-  const me = await db.teamMember.findUnique({
-    where: { email: session.user.email },
-    select: { teamRole: { select: { name: true } } },
-  });
-  return (me?.teamRole?.name ?? "").trim().toLowerCase().includes("sales manager");
+  const effective = await getEffectiveMember();
+  return (effective?.member.teamRole?.name ?? "").trim().toLowerCase().includes("sales manager");
 }
 
 export async function getPackageReviewScope(): Promise<PackageReviewScope> {
-  const session = await dashboardAuth();
-  if (!session?.user?.email) return { kind: "none" };
+  const effective = await getEffectiveMember();
+  if (!effective) return { kind: "none" };
 
-  const me = await db.teamMember.findUnique({
-    where: { email: session.user.email },
-    select: { teamRole: { select: { name: true } } },
-  });
-  const roleName = (me?.teamRole?.name ?? "").trim().toLowerCase();
+  const roleName = (effective.member.teamRole?.name ?? "").trim().toLowerCase();
 
   if (roleName.includes("sales manager")) return { kind: "company" };
 

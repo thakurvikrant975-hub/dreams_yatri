@@ -42,6 +42,7 @@ import type {
 import {
     logTimeline        as _logTimeline,
     getCurrentActor    as _getCurrentActor,
+    getEffectiveActor  as _getEffectiveActor,
     getQueryById       as _getQueryById,
     getCloseReasons    as _getCloseReasons,
     getRejectionReasons as _getRejectionReasons,
@@ -58,6 +59,9 @@ export async function logTimeline(...args: Parameters<typeof _logTimeline>) {
 }
 export async function getCurrentActor() {
     return _getCurrentActor();
+}
+export async function getEffectiveActor() {
+    return _getEffectiveActor();
 }
 export async function getQueryById(id: string) {
     return _getQueryById(id);
@@ -192,7 +196,7 @@ const CUSTOM_PACKAGE_SELECT = {
  * is a different, creation-dated report and deliberately keeps `createdAt`.)
  * Omit both for the "All Time" view. */
 export async function getSalesQueries(from?: string, to?: string): Promise<SalesQueryRow[]> {
-    const { teamMemberId } = await getCurrentActor();
+    const { teamMemberId } = await getEffectiveActor();
     const isManager = await isSalesManagerRole();
     const scope = isManager ? null : await getLeaderScope();
 
@@ -272,7 +276,7 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
 }
 
 export async function getSalesQueryById(id: string) {
-    const { teamMemberId } = await getCurrentActor();
+    const { teamMemberId } = await getEffectiveActor();
     const scope = await getLeaderScope();
 
     // A Team Leader can see every follow-up logged on the query (not just
@@ -311,7 +315,7 @@ export async function getSalesQueryById(id: string) {
 }
 
 export async function getMyFollowUpForQuery(packageQueryId: string): Promise<FollowUp | null> {
-    const { teamMemberId } = await getCurrentActor();
+    const { teamMemberId } = await getEffectiveActor();
     if (!teamMemberId) return null;
 
     return db.queryFollowUp.findFirst({
@@ -320,7 +324,7 @@ export async function getMyFollowUpForQuery(packageQueryId: string): Promise<Fol
 }
 
 export async function getMyFollowUps(packageQueryId?: string) {
-    const { teamMemberId } = await getCurrentActor();
+    const { teamMemberId } = await getEffectiveActor();
     if (!teamMemberId) return [];
 
     return db.queryFollowUp.findMany({
