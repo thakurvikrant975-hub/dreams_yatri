@@ -15,7 +15,17 @@ export type ImageFolder =
   | "blogs"
   | "avatars"
   | "chat-attachments"
-  | "landing-pages";
+  | "landing-pages"
+  /// Uploaded through /api/upload but absent from this union until now, so the
+  /// route had to cast past it — which is how a folder name that existed in
+  /// neither list still compiled.
+  | "vehicles"
+  | "attractions"
+  | "cab-drivers"
+  /// Proof images for money taken outside the payment gateway. Not decorative
+  /// content like the rest of these: with no approval step behind an offline
+  /// payment, the receipt is the only evidence the payment happened.
+  | "payment-receipts";
 
 export type UploadResult = {
   key: string;

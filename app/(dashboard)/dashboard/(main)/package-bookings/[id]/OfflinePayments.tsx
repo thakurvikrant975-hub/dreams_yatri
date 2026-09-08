@@ -171,7 +171,12 @@ export function RecordOfflinePaymentPanel({
             <div className="mt-3">
                 <label className={label} htmlFor="op-receipt">Receipt or screenshot — required</label>
                 <div className="flex items-center gap-3">
-                    <input id="op-receipt" ref={fileRef} type="file" accept="image/*,application/pdf" onChange={onPickReceipt}
+                    {/* Images only — /api/upload rejects anything outside
+                        ALLOWED_TYPES, so offering PDF here would just fail at
+                        the server. A UPI or bank receipt is a screenshot in
+                        practice; if PDFs are genuinely needed the upload route
+                        has to allow them first. */}
+                    <input id="op-receipt" ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" onChange={onPickReceipt}
                         className="text-xs text-dashboard-neutral file:mr-3 file:rounded-md file:border file:border-dashboard-base-300 file:bg-dashboard-base-200 file:px-3 file:py-1.5 file:text-xs file:text-dashboard-base-content" />
                     {uploading && <span className="text-xs text-dashboard-neutral">Uploading…</span>}
                     {receiptUrl && !uploading && (
