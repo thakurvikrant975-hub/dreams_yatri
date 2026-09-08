@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { db } from "@/app/lib/db";
+import { canUseViewAs } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 const COOKIE = "dy_view_as";
 
@@ -14,7 +15,7 @@ async function assertFSD(): Promise<boolean> {
     where: { email: session.user.email },
     select: { teamRole: { select: { name: true } } },
   });
-  return m?.teamRole?.name?.toLowerCase() === "full stack developer";
+  return canUseViewAs(session.user.email, m?.teamRole?.name);
 }
 
 export type ViewableMember = {

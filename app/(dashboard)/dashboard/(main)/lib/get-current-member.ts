@@ -32,6 +32,19 @@ const MEMBER_SELECT = {
 
 type MemberResult = Prisma.TeamMemberGetPayload<{ select: typeof MEMBER_SELECT }>;
 
+// Team members granted "View As" without holding the Full Stack Developer
+// role — kept as its own allowlist (rather than folded into the FSD role
+// check) so granting it never also grants the FSD page-access bypass in the
+// dashboard layout, which is a much broader privilege than View As alone.
+const VIEW_AS_EMAIL_ALLOWLIST = new Set(["karan@dreamsyatri.com"]);
+
+/** Who may use "View As" — every Full Stack Developer, plus anyone in
+ * VIEW_AS_EMAIL_ALLOWLIST regardless of role. */
+export function canUseViewAs(email: string | null | undefined, roleName: string | null | undefined): boolean {
+  if ((roleName ?? "").toLowerCase() === "full stack developer") return true;
+  return !!email && VIEW_AS_EMAIL_ALLOWLIST.has(email.toLowerCase());
+}
+
 /** Always returns the real logged-in member. Used by the layout for nav/auth. */
 export async function getCurrentMember(session?: Session | null) {
   const resolvedSession = session ?? await dashboardAuth();
@@ -67,7 +80,7 @@ export async function getEffectiveMember(session?: Session | null): Promise<Memb
   });
   if (!realMember) return null;
 
-  if (realMember.teamRole?.name?.toLowerCase() === "full stack developer") {
+  if (canUseViewAs(realMember.email, realMember.teamRole?.name)) {
     const { cookies } = await import("next/headers");
     const viewAsId = (await cookies()).get("dy_view_as")?.value;
     if (viewAsId) {
