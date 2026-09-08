@@ -57,12 +57,15 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
   y = bannerHeight + 10;
 
   // ── Summary stats ─────────────────────────────────────────────────────
+  // Every tile counts handovers, so they reconcile with one another:
+  // in-house + agency = handed over in range. Intake is not up here — it is
+  // a different population and gets its own, explicitly labelled line below.
   const stats: [string, string | number, [number, number, number]][] = [
-    ["Today's leads", data.summary.todayLeads, primary],
-    ["Total leads (range)", data.summary.totalLeads, info],
-    ["Converted", data.summary.converted, success],
+    ["Handed over today", data.summary.handedOverToday, primary],
+    ["Handed over (range)", data.summary.handedOverInRange, info],
+    ["To our execs", data.summary.inHouse, success],
+    ["To partner agencies", data.summary.partnerAgency, secondary],
     ["Conversion rate", `${data.summary.convRate}%`, warning],
-    ["Destinations reached", data.summary.uniqueDestinations, secondary],
   ];
   const statGap = 3;
   const statBoxWidth = (CONTENT_WIDTH - statGap * (stats.length - 1)) / stats.length;
@@ -87,7 +90,27 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
     pdf.setTextColor(105, 105, 110);
     pdf.text(label, x + 4, y + 16.5, { maxWidth: statBoxWidth - 7 });
   });
-  y += 28;
+  y += 24;
+
+  /*
+   * Intake, stated as the different thing it is and kept off the tiles above.
+   * Printing "108 received" as a headline beside 112 leads assigned to our
+   * own execs is what made this report read as broken: a lead that arrived
+   * last night and went out this morning is one arrival and one handover, on
+   * two different days. Saying so in one sentence is cheaper than a reader
+   * discovering it by arithmetic and not trusting the page afterwards.
+   */
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(120, 120, 120);
+  pdf.text(
+    `Every figure in this report counts leads HANDED OVER in the range, on the day of the handover. `
+    + `For context, ${data.summary.receivedInRange} leads arrived in this range and `
+    + `${data.summary.unassignedInRange} are still waiting for an owner — those are arrivals, not handovers, `
+    + `so they are not expected to match the totals above.`,
+    MARGIN, y, { maxWidth: CONTENT_WIDTH },
+  );
+  y += 12;
 
   function sectionTitle(title: string, subtitle?: string) {
     // Extra breathing room above every section heading — otherwise a
@@ -168,7 +191,7 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
 
   // ── Leads by destination (quick totals) ───────────────────────────────
   const destTotal = data.byDestination.reduce((s, d) => s + d.value, 0) || 1;
-  sectionTitle("Leads by Destination");
+  sectionTitle("Handed-over Leads by Destination", "Of the leads assigned in this range");
   drawTable(
     [{ header: "Destination", width: 100 }, { header: "Leads", width: 40, align: "right" }, { header: "Share", width: 40, align: "right" }],
     data.byDestination,
@@ -177,7 +200,7 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
 
   // ── Leads by source/channel ───────────────────────────────────────────
   const chTotal = data.byChannel.reduce((s, c) => s + c.value, 0) || 1;
-  sectionTitle("Leads by Source");
+  sectionTitle("Handed-over Leads by Source", "Of the leads assigned in this range");
   drawTable(
     [{ header: "Source", width: 100 }, { header: "Leads", width: 40, align: "right" }, { header: "Share", width: 40, align: "right" }],
     data.byChannel,
@@ -186,7 +209,7 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
 
   // ── Destination x source breakdown — "for Gujarat, how many leads from
   // which source" — for every destination, a mini bar per source. ─────────
-  sectionTitle("Destination-wise Source Breakdown", "How each destination's leads split across marketing sources");
+  sectionTitle("Destination-wise Source Breakdown", "How each destination's handed-over leads split across marketing sources");
 
   const rowH = 6;
   const headerH = 9;
@@ -258,32 +281,55 @@ export function buildLeadReportPdf(data: LeadManagerAnalyticsData, opts: { gener
     y += blockGap;
   });
 
-  // ── Leads handed out, per exec ────────────────────────────────────────
-  const handedOut = data.byTeamMember.reduce((s, m) => s + m.value, 0);
-  const memberTotal = handedOut || 1;
-  sectionTitle(
-    "Leads Assigned by Team Member",
-    "Handovers made in this range, counted on the day of the handover — a lead that came in last night and was passed on this morning counts today",
-  );
-  drawTable(
-    [{ header: "Team Member", width: 110 }, { header: "Leads Assigned", width: 45, align: "right" }, { header: "Share", width: 25, align: "right" }],
-    data.byTeamMember,
-    (m, ci) => (ci === 0 ? m.name : ci === 1 ? String(m.value) : `${Math.round((m.value / memberTotal) * 100)}%`),
+  // ── Who got them ──────────────────────────────────────────────────────
+  // Two tables, not one ranked list. In-house and sold-on are different
+  // outcomes, and the subtotals are what let a lead manager check this page
+  // against the day's assignment mails: they add back up to the handover
+  // total on the tiles, and nothing else on the page competes with it.
+  const handedOver = data.summary.handedOverInRange;
+  const share = (n: number) => (handedOver > 0 ? `${Math.round((n / handedOver) * 100)}%` : "0%");
+
+  function assigneeTable(title: string, subtitle: string, rows: { name: string; value: number }[], subtotal: number) {
+    sectionTitle(title, subtitle);
+    drawTable(
+      [{ header: "Name", width: 110 }, { header: "Leads Assigned", width: 45, align: "right" }, { header: "Share", width: 25, align: "right" }],
+      rows,
+      (m, ci) => (ci === 0 ? m.name : ci === 1 ? String(m.value) : share(m.value)),
+    );
+    ensureSpace(8);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(45, 45, 45);
+    pdf.text(`Subtotal: ${subtotal} (${share(subtotal)} of all handovers)`, MARGIN + 2, y - 4);
+  }
+
+  assigneeTable(
+    "Leads Assigned - Our Sales Executives",
+    "Handovers made in this range, counted on the day of the handover",
+    data.byAssignee.inHouse,
+    data.summary.inHouse,
   );
 
-  // Spelled out under the table rather than added to it as an "Unassigned"
-  // row: a lead nobody has been given is not a handover, and folding it in
-  // would make the total above stop matching the assignment mails.
-  ensureSpace(10);
-  y += 1;
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(120, 120, 120);
-  pdf.text(
-    `${handedOut} handed out in this range. Of the ${data.summary.totalLeads} leads received, ${data.summary.unassignedInRange} are still waiting for an owner.`,
-    MARGIN + 4.5, y, { maxWidth: CONTENT_WIDTH - 4.5 },
+  assigneeTable(
+    "Leads Assigned - Partner Agencies",
+    "Leads sold on to an outside agency, counted the same way",
+    data.byAssignee.partners,
+    data.summary.partnerAgency,
   );
-  y += 5.5;
+
+  // The one line that ties the whole report together.
+  ensureSpace(12);
+  y += 4;
+  pdf.setFillColor(...primary);
+  pdf.roundedRect(MARGIN, y - 4.5, CONTENT_WIDTH, 9, 1.5, 1.5, "F");
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.setTextColor(255, 255, 255);
+  pdf.text(
+    `Total handed over: ${data.summary.inHouse} to our execs + ${data.summary.partnerAgency} to partner agencies = ${handedOver}`,
+    MARGIN + 3, y + 1.4,
+  );
+  y += 10;
 
   // ── Footer — page numbers on every page, added last so the final count
   // is known. ──────────────────────────────────────────────────────────

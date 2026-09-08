@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Users, MapPin, PieChart as PieChartIcon, TrendingUp, Download, Phone, CalendarClock,
+  UserCheck, Handshake,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { istDayOffset } from "../../lead-report/ist";
@@ -14,7 +15,7 @@ import { TrendAreaChart } from "./charts/TrendAreaChart";
 import { BreakdownPieChart } from "./charts/BreakdownPieChart";
 import { RankedBarChart } from "./charts/RankedBarChart";
 import { DataTable, type ColumnDef } from "./Datatable";
-import type { LeadManagerAnalyticsData, LeadRow } from "../../actions/lead-manager-analytics-actions";
+import type { AssigneeRow, LeadManagerAnalyticsData, LeadRow } from "../../actions/lead-manager-analytics-actions";
 
 type Props = {
   data: LeadManagerAnalyticsData;
@@ -81,6 +82,52 @@ function DashCardHeader({ children, action }: { children: React.ReactNode; actio
   );
 }
 
+/** One block of "who got them" — a ranked list with the subtotal stated on
+ * the header, so the split can be read without adding the rows up. Bars are
+ * scaled within the block: the two blocks answer different questions and a
+ * shared scale would flatten the smaller one into invisibility. */
+function AssigneeCard({
+  title, icon, rows, subtotal, share, empty,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  rows: AssigneeRow[];
+  subtotal: number;
+  share: string;
+  empty: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <DashCard>
+      <DashCardHeader
+        action={
+          <span className="text-xs font-semibold tabular-nums">
+            {subtotal} <span className="font-normal opacity-70">· {share}</span>
+          </span>
+        }
+      >
+        {icon}
+        <p className="text-sm font-semibold">{title}</p>
+      </DashCardHeader>
+      {rows.length === 0 ? (
+        <p className="text-sm text-dashboard-base-content/45 py-8 px-4">{empty}</p>
+      ) : (
+        <ul className="p-4 space-y-2.5 max-h-96 overflow-y-auto">
+          {rows.map((r) => (
+            <li key={r.name} className="flex items-center gap-3">
+              <span className="w-28 shrink-0 truncate text-sm text-dashboard-base-content">{r.name}</span>
+              <div className="flex-1 h-2 rounded-full bg-dashboard-base-200 overflow-hidden">
+                <div className="h-full rounded-full bg-dashboard-primary" style={{ width: `${(r.value / max) * 100}%` }} />
+              </div>
+              <span className="w-8 shrink-0 text-right text-sm font-semibold text-dashboard-base-content tabular-nums">{r.value}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </DashCard>
+  );
+}
+
 export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,6 +151,11 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
     ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${from}T00:00:00`))
     : `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${from}T00:00:00`))} – ${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${to}T00:00:00`))}`;
 
+  // Every share on this page is of the handover total, so the tiles and the
+  // per-assignee tables can be read against each other.
+  const handedOver = data.summary.handedOverInRange;
+  const pct = (n: number) => (handedOver > 0 ? `${Math.round((n / handedOver) * 100)}%` : "0%");
+
   const reportTotalPages = Math.max(1, Math.ceil(data.reportRows.length / reportPageSize));
   const pagedReportRows = useMemo(
     () => data.reportRows.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize),
@@ -124,22 +176,43 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
     }
   }
 
+  const agencyTag = (r: LeadRow) =>
+    r.isPartnerAgency ? (
+      <span className="ml-1.5 inline-flex items-center rounded px-1 py-0.5 text-[10px] font-semibold bg-dashboard-secondary/15 text-dashboard-secondary">
+        Agency
+      </span>
+    ) : null;
+
   const todaysLeadCols: ColumnDef<LeadRow>[] = [
-    { header: "Time", width: "w-[70px]", cell: (r) => <span className="text-xs text-dashboard-base-content/60 whitespace-nowrap">{fmtTime(r.createdAt)}</span> },
+    // The handover time, not the arrival time — this table is today's
+    // handovers, and stamping it with when the lead first came in made rows
+    // from last night look like they were logged at the wrong hour.
+    { header: "Handed at", width: "w-[80px]", cell: (r) => <span className="text-xs text-dashboard-base-content/60 whitespace-nowrap">{r.assignedAt ? fmtTime(r.assignedAt) : "—"}</span> },
     { header: "Name", cell: (r) => (
       <div>
         <div className="text-sm font-medium text-dashboard-base-content">{r.name}</div>
         <div className="text-xs text-dashboard-neutral">{r.phone}</div>
       </div>
     ) },
+    { header: "Assigned to", cell: (r) => (
+      <span className="text-sm text-dashboard-base-content/80">
+        {r.assignedToName ?? "—"}{agencyTag(r)}
+      </span>
+    ) },
     { header: "Destination", cell: (r) => <span className="text-sm text-dashboard-base-content">{r.destination?.trim() || "—"}</span> },
-    { header: "Source", cell: (r) => <span className="text-xs text-dashboard-base-content/70">{r.channel}</span> },
     { header: "Status", align: "right", cell: (r) => <StatusPill status={r.status} /> },
   ];
 
   const reportCols: ColumnDef<LeadRow>[] = [
-    { header: "Date", width: "w-[100px]", sortKey: (r) => r.createdAt, cell: (r) => (
+    { header: "Handed over", width: "w-[110px]", sortKey: (r) => r.assignedAt ?? "", cell: (r) => (
       <div className="text-xs text-dashboard-base-content/70 whitespace-nowrap">
+        {r.assignedAt ? `${fmtDate(r.assignedAt)} · ${fmtTime(r.assignedAt)}` : "—"}
+      </div>
+    ) },
+    // Kept beside it so the wait is visible: this is the column that explains
+    // why a handover total and an intake total never match.
+    { header: "Came in", width: "w-[100px]", sortKey: (r) => r.createdAt, cell: (r) => (
+      <div className="text-xs text-dashboard-base-content/45 whitespace-nowrap">
         {fmtDate(r.createdAt)} · {fmtTime(r.createdAt)}
       </div>
     ) },
@@ -149,10 +222,14 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
         <div className="text-xs text-dashboard-neutral">{r.phone}</div>
       </div>
     ) },
+    { header: "Assigned to", sortKey: (r) => r.assignedToName?.toLowerCase() ?? "", cell: (r) => (
+      <span className="text-sm text-dashboard-base-content/80">
+        {r.assignedToName ?? "—"}{agencyTag(r)}
+      </span>
+    ) },
     { header: "Destination", sortKey: (r) => r.destination?.toLowerCase() ?? "", cell: (r) => <span className="text-sm text-dashboard-base-content">{r.destination?.trim() || "—"}</span> },
     { header: "Source", sortKey: (r) => r.channel, cell: (r) => <span className="text-xs text-dashboard-base-content/70">{r.channel}</span> },
     { header: "Status", cell: (r) => <StatusPill status={r.status} /> },
-    { header: "Assigned To", cell: (r) => <span className="text-sm text-dashboard-base-content/80">{r.assignedToName ?? "Unassigned"}</span> },
   ];
 
   return (
@@ -194,46 +271,69 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
         </div>
       </div>
 
-      {/* ── KPI row ───────────────────────────────────────────────────────── */}
+      {/* ── KPI row ───────────────────────────────────────────────────────
+          Every tile counts handovers, so they reconcile with each other:
+          in-house + agency = handed over in range. Intake is deliberately
+          not up here — it is a different population, and standing it beside
+          these was what made the report read as broken. */}
       <StatGrid cols={5}>
         <StatCard
-          label="Today's Leads" value={data.summary.todayLeads} icon={CalendarClock}
+          label="Handed over today" value={data.summary.handedOverToday} icon={CalendarClock}
           iconColor="bg-dashboard-primary/10" iconText="text-dashboard-primary"
-          sub={new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date())}
+          sub={new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" }).format(new Date())}
         />
         <StatCard
-          label="Total Leads" value={data.summary.totalLeads} icon={Users}
+          label="Handed over (range)" value={data.summary.handedOverInRange} icon={Users}
           iconColor="bg-dashboard-info/10" iconText="text-dashboard-info"
           sub={rangeLabel}
         />
         <StatCard
-          label="Converted" value={data.summary.converted} icon={TrendingUp}
+          label="To our execs" value={data.summary.inHouse} icon={UserCheck}
           iconColor="bg-dashboard-success/10" iconText="text-dashboard-success"
-          sub="this range"
+          sub={`${pct(data.summary.inHouse)} of handovers`}
         />
         <StatCard
-          label="Conv. Rate" value={`${data.summary.convRate}%`} icon={PieChartIcon}
-          iconColor="bg-dashboard-warning/10" iconText="text-dashboard-warning"
-          sub="converted / total leads"
-        />
-        <StatCard
-          label="Destinations" value={data.summary.uniqueDestinations} icon={MapPin}
+          label="To partner agencies" value={data.summary.partnerAgency} icon={Handshake}
           iconColor="bg-dashboard-secondary/10" iconText="text-dashboard-secondary"
-          sub="distinct destinations reached"
+          sub={`${pct(data.summary.partnerAgency)} of handovers`}
+        />
+        <StatCard
+          label="Converted" value={data.summary.converted} icon={TrendingUp}
+          iconColor="bg-dashboard-warning/10" iconText="text-dashboard-warning"
+          sub={`${data.summary.convRate}% of handovers`}
         />
       </StatGrid>
+
+      {/* Intake, stated plainly as the different thing it is. A lead that
+          came in last night and went out this morning is one arrival and one
+          handover on two different days, so these two numbers are not meant
+          to match — saying so is the whole point of this strip. */}
+      <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/40 px-4 py-3">
+        <p className="text-xs text-dashboard-base-content/70">
+          <span className="font-semibold text-dashboard-base-content">For context — leads received</span>{" "}
+          in this range: <span className="font-semibold tabular-nums">{data.summary.receivedInRange}</span>
+          {", of which "}
+          <span className="font-semibold tabular-nums">{data.summary.unassignedInRange}</span>
+          {" are still waiting for an owner. "}
+          <span className="text-dashboard-base-content/50">
+            This will not match the handover figures above and is not meant to: a lead that arrived
+            last night and was passed on this morning is counted on the night it came in here, and
+            on the day it was handed over everywhere else.
+          </span>
+        </p>
+      </div>
 
       {/* ── Charts ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <DashCard>
           <DashCardHeader>
             <TrendingUp className="h-4 w-4" />
-            <p className="text-sm font-semibold">Leads over time</p>
+            <p className="text-sm font-semibold">Leads handed over per day</p>
           </DashCardHeader>
           <div className="p-4">
             <TrendAreaChart
               data={data.dailyTrend}
-              series={[{ key: "leads", label: "Leads", color: "var(--color-dashboard-primary)" }]}
+              series={[{ key: "leads", label: "Handed over", color: "var(--color-dashboard-primary)" }]}
             />
           </div>
         </DashCard>
@@ -241,7 +341,7 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
         <DashCard>
           <DashCardHeader>
             <PieChartIcon className="h-4 w-4" />
-            <p className="text-sm font-semibold">Leads by source</p>
+            <p className="text-sm font-semibold">Handed-over leads by source</p>
           </DashCardHeader>
           <div className="p-4">
             <BreakdownPieChart data={data.byChannel} showLabels />
@@ -251,7 +351,7 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
         <DashCard className="lg:col-span-2">
           <DashCardHeader>
             <MapPin className="h-4 w-4" />
-            <p className="text-sm font-semibold">Leads by destination ({data.byDestination.length})</p>
+            <p className="text-sm font-semibold">Handed-over leads by destination ({data.byDestination.length})</p>
           </DashCardHeader>
           {/* Every destination is shown (no "Other" catch-all) — capped to a
              scrollable viewport so a long tail of destinations doesn't blow
@@ -267,34 +367,58 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
       <DashCard>
         <DashCardHeader>
           <Phone className="h-4 w-4" />
-          <p className="text-sm font-semibold">Today&apos;s leads ({data.todaysLeads.length})</p>
+          <p className="text-sm font-semibold">Handed over today ({data.todaysLeads.length})</p>
         </DashCardHeader>
         <DataTable
           data={data.todaysLeads}
           columns={todaysLeadCols}
           rowKey={(r) => r.id}
-          emptyState={<p className="text-sm text-dashboard-base-content/45 py-8">No leads have come in today yet.</p>}
+          emptyState={<p className="text-sm text-dashboard-base-content/45 py-8">Nothing has been handed out to anyone yet today.</p>}
         />
       </DashCard>
+
+      {/* ── Who got them ──────────────────────────────────────────────────
+          Split rather than one ranked list: in-house and sold-on are
+          different outcomes, and a lead manager reads that split before the
+          ranking. The two subtotals add back up to the handover total, which
+          is what makes this table checkable against the day's mails. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AssigneeCard
+          title="Our sales executives"
+          icon={<UserCheck className="h-4 w-4" />}
+          rows={data.byAssignee.inHouse}
+          subtotal={data.summary.inHouse}
+          share={pct(data.summary.inHouse)}
+          empty="No leads went to our own execs in this range."
+        />
+        <AssigneeCard
+          title="Partner agencies"
+          icon={<Handshake className="h-4 w-4" />}
+          rows={data.byAssignee.partners}
+          subtotal={data.summary.partnerAgency}
+          share={pct(data.summary.partnerAgency)}
+          empty="No leads were sold on in this range."
+        />
+      </div>
 
       {/* ── Full report ───────────────────────────────────────────────────── */}
       <DashCard>
         <DashCardHeader>
           <Users className="h-4 w-4" />
-          <p className="text-sm font-semibold">Full lead report — {rangeLabel} ({data.reportRows.length})</p>
+          <p className="text-sm font-semibold">Every handover — {rangeLabel} ({data.reportRows.length})</p>
         </DashCardHeader>
         <DataTable
           data={pagedReportRows}
           columns={reportCols}
           rowKey={(r) => r.id}
-          emptyState={<p className="text-sm text-dashboard-base-content/45 py-8">No leads in this range.</p>}
+          emptyState={<p className="text-sm text-dashboard-base-content/45 py-8">Nothing was handed out in this range.</p>}
           pagination={{
             currentPage: reportPage,
             totalPages: reportTotalPages,
             onPageChange: setReportPage,
             pageSize: reportPageSize,
             onPageSizeChange: (n) => { setReportPageSize(n); setReportPage(1); },
-            label: `Showing ${data.reportRows.length === 0 ? 0 : (reportPage - 1) * reportPageSize + 1}–${Math.min(reportPage * reportPageSize, data.reportRows.length)} of ${data.reportRows.length} leads`,
+            label: `Showing ${data.reportRows.length === 0 ? 0 : (reportPage - 1) * reportPageSize + 1}–${Math.min(reportPage * reportPageSize, data.reportRows.length)} of ${data.reportRows.length} handovers`,
           }}
         />
       </DashCard>
