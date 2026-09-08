@@ -41,13 +41,18 @@ function formatAadhaar(n: string | null) {
 // ── Small building blocks ────────────────────────────────────────────────────
 
 function Field({
-  label, value, icon: Icon,
+  label, value, icon: Icon, alwaysShow = false,
 }: {
   label: string;
   value: string | null | undefined;
   icon: React.ElementType;
+  /** Render with a "Not added" placeholder instead of disappearing when
+   * empty — for fields (like DOB) that should read as "unfilled" rather
+   * than silently vanish, since a hidden row looks like the card doesn't
+   * support the field at all. */
+  alwaysShow?: boolean;
 }) {
-  if (!value) return null;
+  if (!value && !alwaysShow) return null;
   return (
     <div className="flex items-start gap-2.5">
       <div className="h-7 w-7 rounded-md bg-dashboard-base-200 flex items-center justify-center shrink-0 mt-0.5">
@@ -55,7 +60,12 @@ function Field({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wide text-dashboard-base-content/45">{label}</p>
-        <p className="text-sm mt-0.5 truncate text-dashboard-base-content font-medium">{value}</p>
+        <p className={cn(
+          "text-sm mt-0.5 truncate font-medium",
+          value ? "text-dashboard-base-content" : "text-dashboard-base-content/35 italic font-normal",
+        )}>
+          {value || "Not added"}
+        </p>
       </div>
     </div>
   );
@@ -172,7 +182,12 @@ export function MemberDetailCard({ member: m }: Props) {
           <Field label="Alternative Mobile" value={m.alternativeMobile} icon={Phone} />
           <Field label="Official Mobile" value={m.officialMobile} icon={Phone} />
           <Field label="Gender" value={m.gender ? GENDER_LABELS[m.gender] : null} icon={Users2} />
-          <Field label="Date of Birth" value={m.dateOfBirth ? format(new Date(m.dateOfBirth), "d MMM yyyy") : null} icon={Calendar} />
+          <Field
+            label="Date of Birth"
+            value={m.dateOfBirth ? format(new Date(m.dateOfBirth), "d MMM yyyy") : null}
+            icon={Calendar}
+            alwaysShow
+          />
         </SubSection>
 
         {(m.fatherName || m.motherName) && (
