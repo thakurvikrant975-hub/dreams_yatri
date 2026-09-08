@@ -9,7 +9,6 @@ import {
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
     CircleX, Package, Plus, Focus, MessageSquare,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import {
@@ -26,7 +25,8 @@ import { CallLogDialog } from "./CallLogDialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
+import { getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
+import { RequestReopenDialog } from "./RequestReopenDialog";
 import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
@@ -108,24 +108,15 @@ function ActionCell({
     onView,
     isTeamLead,
 }: {
-    query: PackageQueryType;
+    query: SalesQueryRow;
     onView: () => void;
     /** Shows the Timeline sheet, with its "add note" form enabled — a Team
      * Leader's way of updating a query's timeline directly, rather than only
      * reading it. */
     isTeamLead: boolean;
 }) {
-    const [isPendingReopen, startReopen] = useTransition();
     const closed = isClosedStatus(query.status as SalesQueryStatus);
     const converted = isConvertedStatus(query.status as SalesQueryStatus);
-    function handleReopen(e: React.MouseEvent) {
-        e.stopPropagation();
-        startReopen(async () => {
-            const r = await reopenSalesQuery(query.id);
-            if (r.success) toast.success(r.message);
-            else toast.error(r.message);
-        });
-    }
 
     return (
         <TooltipProvider delayDuration={300}>
@@ -210,21 +201,34 @@ function ActionCell({
                     </Tooltip>
                 )}
 
-                {/* Reopen — closed only */}
+                {/* Reopen — closed only, now request-based (see RequestReopenDialog) */}
                 {closed && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost" size="icon"
-                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                                onClick={handleReopen}
-                                disabled={isPendingReopen}
-                            >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Reopen Query</TooltipContent>
-                    </Tooltip>
+                    query.pendingReopenRequestId ? (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="flex h-8 w-8 items-center justify-center text-amber-500">
+                                    <Clock className="h-3.5 w-3.5" />
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Reopen requested — pending review</TooltipContent>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span onClick={(e) => e.stopPropagation()}>
+                                    <RequestReopenDialog queryId={query.id} leadName={query.name}>
+                                        <Button
+                                            variant="ghost" size="icon"
+                                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                                        >
+                                            <RotateCcw className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </RequestReopenDialog>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Request Reopen</TooltipContent>
+                        </Tooltip>
+                    )
                 )}
             </div>
         </TooltipProvider>

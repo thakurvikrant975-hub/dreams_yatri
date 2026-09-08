@@ -160,7 +160,15 @@ import type { SentPackageInfo } from "./package-status";
 
 // A query can now have more than one package built for it (e.g. two
 // different budget options sent to the same client) — most recent first.
-export type SalesQueryRow = PackageQuery & { customPackages: SentPackageInfo[]; callLogStatuses: CallLogStatus[] };
+export type SalesQueryRow = PackageQuery & {
+    customPackages: SentPackageInfo[];
+    callLogStatuses: CallLogStatus[];
+    /** Id of this query's own PENDING QueryReopenRequest, if any — lets the
+     * table/detail sheet show "Reopen requested — pending review" instead of
+     * a reopen button, without a per-row query. Null once decided (or if
+     * none was ever requested), even though the request row itself lives on. */
+    pendingReopenRequestId: string | null;
+};
 
 const CUSTOM_PACKAGE_SELECT = {
     id: true, title: true, status: true, createdAt: true, sentAt: true, readyAt: true,
@@ -265,6 +273,18 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
         callLogStatusesByQueryId.set(row.queryId, arr);
     }
 
+    // A closed query no longer self-reopens (see reopen-requests/actions.ts)
+    // — it needs a reviewed QueryReopenRequest instead. Same batched-lookup
+    // idiom as the two above, so the Lead column can show "pending review"
+    // in place of the reopen button without a per-row query.
+    const pendingReopenRows = queryIds.length > 0
+        ? await db.queryReopenRequest.findMany({
+            where:  { queryId: { in: queryIds }, status: "PENDING" },
+            select: { id: true, queryId: true },
+        })
+        : [];
+    const pendingReopenIdByQueryId = new Map(pendingReopenRows.map((r) => [r.queryId, r.id]));
+
     return queries.map((q) => ({
         ...q,
         rejectionReason:   q.rejection_reasons ?? null,
@@ -272,6 +292,7 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
         customPackages:    (q.custom_packages ?? []).map((cp: { id: string }) =>
             mapCustomPackage(cp, libraryStatusByPackageId.get(cp.id) ?? null)),
         callLogStatuses:   callLogStatusesByQueryId.get(q.id) ?? [],
+        pendingReopenRequestId: pendingReopenIdByQueryId.get(q.id) ?? null,
     })) as SalesQueryRow[];
 }
 
@@ -305,12 +326,18 @@ export async function getSalesQueryById(id: string) {
         : [];
     const nameById = new Map(authors.map((a) => [a.id, a.name]));
 
+    const pendingReopenRequest = await db.queryReopenRequest.findFirst({
+        where:  { queryId: id, status: "PENDING" },
+        select: { id: true },
+    });
+
     return {
         ...query,
         notes: query.notes.map((n) => ({
             ...n,
             authorName: n.authorId === "system" ? "System" : (nameById.get(n.authorId) ?? null),
         })),
+        pendingReopenRequestId: pendingReopenRequest?.id ?? null,
     };
 }
 
@@ -523,32 +550,9 @@ export async function closeSalesQuery(packageQueryId: string, formData: FormData
     }
 }
 
-// ── Reopen ────────────────────────────────────────────────────────────────────
-
-export async function reopenSalesQuery(packageQueryId: string): Promise<ActionResult> {
-    try {
-        const { teamMemberId, teamMemberName } = await getCurrentActor();
-
-        await db.package_queries.update({
-            where: { id: packageQueryId },
-            data: {
-                status:           "IN_PROGRESS",
-                closeReasonId:    null,
-                closeReasonOther: null,
-                closedAt:         null,
-                closedBy:         null,
-            },
-        });
-
-        await logTimeline(packageQueryId, `🔄 Query Reopened`, teamMemberId ?? undefined, teamMemberName ?? undefined);
-
-        revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: "Reopened" };
-    } catch (err) {
-        console.error("reopenSalesQuery error:", err);
-        return { success: false, message: "Failed to reopen" };
-    }
-}
+// Reopen is no longer self-service — see reopen-requests/actions.ts, which
+// owns the request/review/approve flow and is the only place a closed
+// query's status flips back to IN_PROGRESS.
 
 // ── Package requirements ──────────────────────────────────────────────────────
 

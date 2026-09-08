@@ -20,6 +20,7 @@ export function AppSidebar({
   packagesPending = 0,
   hotelRequestsPending = 0,
   leadRequestsPending = 0,
+  reopenRequestsPending = 0,
 }: {
   pageAccess?: string[] | null;
   hotelsPending?: number;
@@ -28,6 +29,7 @@ export function AppSidebar({
   packagesPending?: number;
   hotelRequestsPending?: number;
   leadRequestsPending?: number;
+  reopenRequestsPending?: number;
 }) {
   const pathname = usePathname();
 
@@ -77,6 +79,13 @@ export function AppSidebar({
     setLiveLeadRequestsPending(leadRequestsPending);
   }
 
+  const [reopenRequestsSyncedFrom, setReopenRequestsSyncedFrom] = useState(reopenRequestsPending);
+  const [liveReopenRequestsPending, setLiveReopenRequestsPending] = useState(reopenRequestsPending);
+  if (reopenRequestsPending !== reopenRequestsSyncedFrom) {
+    setReopenRequestsSyncedFrom(reopenRequestsPending);
+    setLiveReopenRequestsPending(reopenRequestsPending);
+  }
+
   useVerificationCounts((counts) => {
     setLiveHotelsPending(counts.hotelsPending);
     setLiveCabsPending(counts.cabsPending);
@@ -84,6 +93,7 @@ export function AppSidebar({
     setLivePackagesPending(counts.packagesPending);
     setLiveHotelRequestsPending(counts.hotelRequestsPending);
     setLiveLeadRequestsPending(counts.leadRequestsPending);
+    setLiveReopenRequestsPending(counts.reopenRequestsPending);
   });
 
   // Nav hrefs that carry a live "still needs doing" count badge.
@@ -94,6 +104,7 @@ export function AppSidebar({
     "/dashboard/verify-packages": livePackagesPending,
     "/dashboard/hotel-requests": liveHotelRequestsPending,
     "/dashboard/lead-requests": liveLeadRequestsPending,
+    "/dashboard/reopen-requests": liveReopenRequestsPending,
   };
 
   function isPageAllowed(href: string) {
