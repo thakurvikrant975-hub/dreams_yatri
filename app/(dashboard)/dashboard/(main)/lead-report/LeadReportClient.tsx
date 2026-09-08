@@ -3,15 +3,11 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Download, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { cpl, EMPTY_SPEND, type SpendInput } from "./leadSheetPdf";
 import type { LeadReportData, PaymentRow, Platform, Medium } from "./actions";
 import { IST_TZ, dateToIstLocal, istDayKey, istDayOffset } from "./ist";
-import {
-  loadManualPayments, saveManualPayments, manualRowsInWindow,
-  SOURCE_OPTIONS, type ManualPayment,
-} from "./manual-payments";
 
 type Props = {
   data: LeadReportData;
@@ -157,91 +153,6 @@ function MoneyInput({
   );
 }
 
-/** Inline form for an offline payment. Kept uncontrolled-ish and local so
- * typing in it doesn't re-render the whole report on every keystroke. */
-function AddPaymentForm({
-  defaultAt, onAdd, onCancel,
-}: {
-  defaultAt: string;
-  onAdd: (p: Omit<ManualPayment, "id">) => void;
-  onCancel: () => void;
-}) {
-  const [paidAtLocal, setPaidAtLocal] = useState(defaultAt);
-  const [clientName, setClientName] = useState("");
-  const [agentName, setAgentName] = useState("");
-  const [destination, setDestination] = useState("");
-  const [source, setSource] = useState("");
-  const [amount, setAmount] = useState<number | null>(null);
-
-  const ready = clientName.trim().length > 0 && amount != null && amount > 0 && paidAtLocal.length > 0;
-
-  function submit() {
-    if (!ready) return;
-    const opt = SOURCE_OPTIONS.find((o) => o.value === source) ?? SOURCE_OPTIONS[0];
-    onAdd({
-      paidAtLocal, clientName: clientName.trim(), agentName, destination,
-      platform: opt.platform, medium: opt.medium, amount: amount!,
-    });
-  }
-
-  const field = "h-9 w-full rounded-md border border-dashboard-base-300 bg-dashboard-base-100 px-2.5 text-sm outline-none focus:border-dashboard-primary";
-
-  return (
-    <div className="p-4 space-y-3 bg-dashboard-base-200/40 border-b border-dashboard-base-300">
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Paid at (IST)</span>
-          <input type="datetime-local" value={paidAtLocal} onChange={(e) => setPaidAtLocal(e.target.value)} className={cn(field, "cursor-pointer")} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Client name</span>
-          <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Jyoti Sharma" className={field} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Sales exec</span>
-          <input value={agentName} onChange={(e) => setAgentName(e.target.value)} placeholder="Miss Jyoti" className={field} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Destination</span>
-          <input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Goa" className={field} />
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Source</span>
-          <select value={source} onChange={(e) => setSource(e.target.value)} className={cn(field, "cursor-pointer")}>
-            {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </label>
-        <label className="space-y-1">
-          <span className="text-xs text-dashboard-base-content/60">Amount</span>
-          <MoneyInput value={amount} onChange={setAmount} placeholder="25000" className="h-9" />
-        </label>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!ready}
-          className="h-9 px-4 rounded-md bg-dashboard-primary text-dashboard-primary-content text-sm font-medium disabled:opacity-40 hover:opacity-90 cursor-pointer"
-        >
-          Add payment
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-9 px-4 rounded-md border border-dashboard-base-300 text-sm text-dashboard-base-content/70 hover:bg-dashboard-base-200 cursor-pointer"
-        >
-          Cancel
-        </button>
-        <span className="text-xs text-dashboard-base-content/50 ml-1">
-          Saved in this browser until offline payments are recorded in the system.
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ── Main ───────────────────────────────────────────────────────────────────
-
 export function LeadReportClient({ data, generatedByName }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -253,8 +164,6 @@ export function LeadReportClient({ data, generatedByName }: Props) {
   const [customOpen, setCustomOpen] = useState(false);
   const [destSpendOpen, setDestSpendOpen] = useState(false);
   const [spend, setSpend] = useState<SpendInput>(EMPTY_SPEND);
-  const [manual, setManual] = useState<ManualPayment[]>([]);
-  const [addingPayment, setAddingPayment] = useState(false);
 
   // The window's start date keys the remembered spend — a report running from
   // yesterday 11am belongs to yesterday's ad spend.
@@ -269,17 +178,6 @@ export function LeadReportClient({ data, generatedByName }: Props) {
     setSpend(loaded);
     if (Object.keys(loaded.perDestination).length > 0) setDestSpendOpen(true);
   }, [spendDayKey]);
-
-  // Manual payments aren't keyed to the window — they're a standing list,
-  // filtered to whatever range is on screen — so this loads once.
-  useEffect(() => {
-    setManual(loadManualPayments());
-  }, []);
-
-  const updateManual = useCallback((next: ManualPayment[]) => {
-    setManual(next);
-    saveManualPayments(next);
-  }, []);
 
   useEffect(() => {
     setFrom(data.range.fromLocal);
@@ -357,12 +255,20 @@ export function LeadReportClient({ data, generatedByName }: Props) {
   // together — they're the same fact to the reader, so they belong in one
   // ordered list rather than a second table underneath.
   const allPayments = useMemo<PaymentRow[]>(() => {
-    const rows = [...data.payments, ...manualRowsInWindow(manual, data.range.fromLocal, data.range.toLocal)];
+    const rows = [...data.payments];
     return rows.sort((a, b) => a.paidAt.localeCompare(b.paidAt));
-  }, [data.payments, manual, data.range.fromLocal, data.range.toLocal]);
+  }, [data.payments]);
 
   const paymentsTotal = useMemo(
     () => allPayments.reduce((sum, p) => sum + p.amount, 0),
+    [allPayments],
+  );
+
+  // Split out because the two are not the same money on the same day. Offline
+  // payments are already in the bank; a gateway settlement is a couple of days
+  // behind and has had its fee taken. Reading one total hides that.
+  const offlineTotal = useMemo(
+    () => allPayments.reduce((sum, p) => sum + (p.isManual ? p.amount : 0), 0),
     [allPayments],
   );
 
@@ -700,36 +606,16 @@ export function LeadReportClient({ data, generatedByName }: Props) {
         action={
           <div className="flex items-center gap-3">
             {allPayments.length > 0 && (
-              <span className="text-xs text-dashboard-base-content/60">{money(paymentsTotal)} total</span>
-            )}
-            {!addingPayment && (
-              <button
-                type="button"
-                onClick={() => setAddingPayment(true)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md border border-dashboard-base-300 text-xs font-medium text-dashboard-base-content/70 hover:bg-dashboard-base-200 cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" /> Add offline payment
-              </button>
+              <span className="text-xs text-dashboard-base-content/60">
+                {money(paymentsTotal)} total
+                {offlineTotal > 0 && (
+                  <> · {money(paymentsTotal - offlineTotal)} gateway · {money(offlineTotal)} offline</>
+                )}
+              </span>
             )}
           </div>
         }
       >
-        {/* Cash and bank transfers never reach the payments table, so they're
-            typed in here and merged into the day they belong to. */}
-        {addingPayment && (
-          <Panel className="overflow-hidden">
-            <AddPaymentForm
-              defaultAt={data.range.toLocal}
-              onCancel={() => setAddingPayment(false)}
-              onAdd={(p) => {
-                updateManual([...manual, { ...p, id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` }]);
-                setAddingPayment(false);
-                toast.success("Offline payment added to this report");
-              }}
-            />
-          </Panel>
-        )}
-
         {paymentDays.length === 0 ? (
           <Panel className="px-4 py-8 text-center text-sm text-dashboard-base-content/50">
             No payments in this window.
@@ -771,19 +657,6 @@ export function LeadReportClient({ data, generatedByName }: Props) {
                       <td className="px-3 py-2.5 text-dashboard-base-content/60">{sourcePhrase(p.platform, p.medium)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums font-medium text-dashboard-base-content whitespace-nowrap">
                         {money(p.amount)}
-                        {/* Only hand-entered rows can be removed — the queried
-                            ones are the payments table's business, not this
-                            report's. */}
-                        {p.isManual && (
-                          <button
-                            type="button"
-                            onClick={() => updateManual(manual.filter((m) => m.id !== p.id))}
-                            className="ml-2 align-middle text-dashboard-base-content/30 hover:text-red-500 transition-colors cursor-pointer"
-                            aria-label={`Remove offline payment for ${p.clientName}`}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
                       </td>
                     </tr>
                   ))}

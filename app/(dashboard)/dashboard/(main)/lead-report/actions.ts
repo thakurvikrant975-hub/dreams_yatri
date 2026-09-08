@@ -132,9 +132,12 @@ export type PaymentRow = {
   platform: Platform | null;
   medium: Medium | null;
   gateway: string;
-  /** True for a payment typed into the report by hand rather than read from
-   * the payments table — an offline one (cash, bank transfer) that never
-   * reaches a gateway. The server never sets this; see manual-payments.ts. */
+  /** True for money taken outside the payment gateway — company UPI, a bank
+   * transfer, cash, a cheque. These used to be typed into this report and kept
+   * in the browser; they are real `payments` rows now (gateway = OFFLINE), so
+   * the server sets this and the report needs no local copy. Worth showing
+   * separately because the timing differs: offline money is already in the
+   * bank, while a gateway settlement is a couple of days out. */
   isManual?: boolean;
 };
 
@@ -270,6 +273,7 @@ export async function getLeadReport(fromLocal: string, toLocal: string): Promise
       platform: q ? classifyPlatform(q) : null,
       medium: q ? classifyMedium(q.source) : null,
       gateway: p.gateway,
+      isManual: p.gateway === "OFFLINE",
     };
   });
 

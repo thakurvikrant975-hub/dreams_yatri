@@ -25,6 +25,7 @@ const PAYMENT_TONE: Record<string, string> = {
     PARTIALLY_REFUNDED: "purple",
     FAILED: "red",
     TESTING: "gray",
+    VOIDED: "gray",
 };
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -35,6 +36,7 @@ const PAYMENT_LABEL: Record<string, string> = {
     PARTIALLY_REFUNDED: "Partly refunded",
     FAILED: "Failed",
     TESTING: "Testing",
+    VOIDED: "Voided",
 };
 
 const STATUS_TONE: Record<string, string> = {

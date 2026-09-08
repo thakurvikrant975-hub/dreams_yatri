@@ -45,7 +45,6 @@ async function requireMember(): Promise<{ ok: true; member: Member } | { ok: fal
 
 /** The rails money actually arrives on outside the gateway. */
 const OFFLINE_METHODS = ["UPI", "BANK_TRANSFER", "CASH", "CHEQUE"] as const;
-type OfflineMethod = (typeof OFFLINE_METHODS)[number];
 
 const recordSchema = z.object({
     bookingId: z.string().min(1),

@@ -8,6 +8,7 @@ import { formatPaiseRoundedUp } from "@/app/lib/money";
 import { PaymentPill, StatusPill } from "../pills";
 import BookingAdminActions from "./BookingAdminActions";
 import FulfillmentPanel from "./FulfillmentPanel";
+import { RecordOfflinePaymentPanel, VoidOfflinePaymentButton } from "./OfflinePayments";
 import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
 
 export const metadata: Metadata = {
@@ -358,7 +359,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             },
             travellersList: { orderBy: { isLead: "desc" }, select: { id: true, fullName: true, type: true, gender: true, dateOfBirth: true, isLead: true } },
             installments: { orderBy: { sequence: "asc" }, select: { id: true, type: true, sequence: true, amount_paise: true, dueDate: true, status: true, paidAt: true } },
-            payments: { orderBy: { createdAt: "desc" }, select: { id: true, gateway: true, method: true, amount_paise: true, status: true, purpose: true, gatewayPaymentId: true, gatewayOrderId: true, failureReason: true, createdAt: true, paidAt: true } },
+            payments: { orderBy: { createdAt: "desc" }, select: { id: true, gateway: true, method: true, amount_paise: true, status: true, purpose: true, gatewayPaymentId: true, gatewayOrderId: true, failureReason: true, createdAt: true, paidAt: true, receiptUrl: true, recordedByName: true, notes: true, voidedByName: true, voidReason: true } },
             timeline: { orderBy: { createdAt: "desc" }, select: { id: true, action: true, note: true, fromStatus: true, toStatus: true, performedByName: true, createdAt: true } },
         },
     });
@@ -380,6 +381,14 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     if (viewerSells && !viewerOversees && booking.salesAgentId !== viewer?.member?.id) notFound();
 
     const isFull = booking.paymentPlan === "FULL";
+    // What has actually been settled. VOIDED and FAILED rows fall out here for
+    // the same reason they fall out of every other money query — the status
+    // filter — so the outstanding figure needs no special case for them.
+    const settledPayments = booking.payments.filter(
+        (p) => p.status === "ADVANCE_PAID" || p.status === "FULLY_PAID",
+    );
+    const settledPaise = settledPayments.reduce((sum, p) => sum + p.amount_paise, 0);
+    const outstandingPaise = Math.max(0, booking.totalAmount_paise - settledPaise);
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
     const isHotelOnly = booking.packageId == null;
     const stay = booking.hotelBookings[0];
@@ -604,6 +613,22 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                                 <td className="py-2.5 text-xs text-dashboard-neutral break-all">
                                                     {p.gatewayPaymentId ?? p.gatewayOrderId ?? "—"}
                                                     {p.failureReason && <div className="text-red-600">{p.failureReason}</div>}
+                                                    {/* Offline money has no gateway vouching for it, so who entered
+                                                        it and the receipt they attached are shown beside the row —
+                                                        that is the whole audit trail there is. */}
+                                                    {p.recordedByName && <div className="mt-0.5">Recorded by {p.recordedByName}</div>}
+                                                    {p.notes && <div className="mt-0.5 italic">{p.notes}</div>}
+                                                    {p.receiptUrl && (
+                                                        <a href={p.receiptUrl} target="_blank" rel="noreferrer" className="mt-0.5 inline-block font-medium text-dashboard-primary underline">
+                                                            Receipt
+                                                        </a>
+                                                    )}
+                                                    {p.status === "VOIDED" && p.voidReason && (
+                                                        <div className="mt-0.5 text-red-600">Voided{p.voidedByName ? ` by ${p.voidedByName}` : ""}: {p.voidReason}</div>
+                                                    )}
+                                                    {p.gateway === "OFFLINE" && (p.status === "FULLY_PAID" || p.status === "ADVANCE_PAID") && (
+                                                        <VoidOfflinePaymentButton paymentId={p.id} amountPaise={p.amount_paise} />
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -611,6 +636,16 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                 </table>
                             </div>
                         )}
+
+                        <div className="mt-4">
+                            <RecordOfflinePaymentPanel
+                                bookingId={booking.id}
+                                outstandingPaise={outstandingPaise}
+                                depositPaise={isFull ? booking.totalAmount_paise : booking.advanceAmount_paise}
+                                totalPaise={booking.totalAmount_paise}
+                                isFirstPayment={settledPayments.length === 0}
+                            />
+                        </div>
                     </Section>
 
                     <CollapsibleSection title="Timeline" count={booking.timeline.length}>

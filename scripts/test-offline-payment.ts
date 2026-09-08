@@ -14,7 +14,15 @@
  * Run:  npx tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/test-offline-payment.ts
  */
 import { db, dbTarget } from "./_db";
+import type { TransactionClient } from "../app/lib/db";
 import { finalizeCapturedPayment, reverseFinalizedPayment } from "../app/actions/payment/finalize.service";
+
+/** scripts/_db builds a plain PrismaClient; app/lib/db exports an extended one
+ *  (retry extension), and the two transaction-client types are nominally
+ *  different while being structurally the same for every call made here. The
+ *  cast marks that seam. `import type` is erased, so pulling the type in does
+ *  not drag app/lib/db — and its top-level await — into a tsx script. */
+const asTx = (tx: unknown) => tx as TransactionClient;
 
 let passed = 0, failed = 0;
 function expect(label: string, cond: boolean, detail?: string) {
@@ -86,7 +94,7 @@ async function main() {
             },
             select: { id: true },
         });
-        const finDep = await db.$transaction((tx) => finalizeCapturedPayment(tx, {
+        const finDep = await db.$transaction((tx) => finalizeCapturedPayment(asTx(tx), {
             paymentId: dep.id, gatewayPaymentId: `UTR-${tag}-A`, method: "UPI", paidAt: receivedAt,
         }));
         expect("deposit finalizes", finDep.result === "finalized");
@@ -116,7 +124,7 @@ async function main() {
             },
             select: { id: true },
         });
-        const finBal = await db.$transaction((tx) => finalizeCapturedPayment(tx, {
+        const finBal = await db.$transaction((tx) => finalizeCapturedPayment(asTx(tx), {
             paymentId: bal.id, gatewayPaymentId: `UTR-${tag}-B`, method: "BANK_TRANSFER",
         }));
         expect("balance finalizes", finBal.result === "finalized");
@@ -127,7 +135,7 @@ async function main() {
         expect("nothing outstanding", afterBal.balancePaise === 0, String(afterBal.balancePaise));
 
         // ── 3. The balance was a mistake — void it ───────────────────────────
-        const rev = await db.$transaction((tx) => reverseFinalizedPayment(tx, {
+        const rev = await db.$transaction((tx) => reverseFinalizedPayment(asTx(tx), {
             paymentId: bal.id, reason: "Entered against the wrong booking", byName: "Test Manager",
         }));
         expect("balance reverses", rev.result === "reversed", JSON.stringify(rev));
@@ -146,10 +154,10 @@ async function main() {
             && voided.voidReason === "Entered against the wrong booking" && voided.voidedByName === "Test Manager");
 
         expect("voiding is idempotent",
-            (await db.$transaction((tx) => reverseFinalizedPayment(tx, { paymentId: bal.id, reason: "again" }))).result === "already");
+            (await db.$transaction((tx) => reverseFinalizedPayment(asTx(tx), { paymentId: bal.id, reason: "again" }))).result === "already");
 
         // ── 4. Void the deposit too — booking must fall all the way back ─────
-        const rev2 = await db.$transaction((tx) => reverseFinalizedPayment(tx, {
+        const rev2 = await db.$transaction((tx) => reverseFinalizedPayment(asTx(tx), {
             paymentId: dep.id, reason: "Duplicate of an earlier entry", byName: "Test Manager",
         }));
         expect("deposit reverses", rev2.result === "reversed");
@@ -181,7 +189,7 @@ async function main() {
             },
             select: { id: true },
         });
-        const revPending = await db.$transaction((tx) => reverseFinalizedPayment(tx, { paymentId: pending.id, reason: "nope" }));
+        const revPending = await db.$transaction((tx) => reverseFinalizedPayment(asTx(tx), { paymentId: pending.id, reason: "nope" }));
         expect("a PENDING payment cannot be voided", revPending.result === "not_reversible");
     } finally {
         await db.payment.deleteMany({ where: { bookingId: booking.id } });
