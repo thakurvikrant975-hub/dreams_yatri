@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, Eye, Phone, Mail, PhoneCall,
-    MapPin, Users, Calendar, StickyNote, TrendingUp,
+    MapPin, Users, Calendar, StickyNote,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
     CircleX, Package, Plus, Focus, MessageSquare,
 } from "lucide-react";
@@ -377,6 +377,7 @@ export function SalesQueriesTable({
     ).length;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
+    // Every status bucketed exactly once, so the six breakdown cards sum to totalCount.
     const totalCount = queries.length;
     // New today = assigned to this user today (or created today if no assignedAt)
     const newToday = queries.filter(q => {
@@ -384,17 +385,26 @@ export function SalesQueriesTable({
         return isToday(new Date(dateToCheck));
     }).length;
 
+    const newCount = queries.filter(q =>
+        q.status === "SUBMITTED" || q.status === "VERIFIED" || q.status === "ASSIGNED",
+    ).length;
+
     const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
     const followUpCount = queries.filter(q => q.status === "FOLLOW_UP").length;
 
-    const submitted = queries.filter(q => q.status === "SUBMITTED").length;
+    const packageSentCount = queries.filter(q =>
+        q.status === "PACKAGE_SENT" || q.status === "CLIENT_ACCEPTED"
+        || q.status === "CLIENT_DECLINED" || q.status === "PAYMENT_INITIATED",
+    ).length;
 
-    const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
+    const bookedCount = queries.filter((q) => q.status === "CONVERTED").length;
 
-    const bookedCount = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+    const closedCount = queries.filter(q =>
+        q.status === "CLOSED" || q.status === "REJECTED",
+    ).length;
 
-    // Conversation % = closed queries that converted (booked) / total closed
+    // Conversion % = converted queries / total
     const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
@@ -863,21 +873,22 @@ export function SalesQueriesTable({
                     </div>
                 </div>
 
-                {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
+                {/* Stats — every status bucketed exactly once, so New + In Progress +
+                    Follow Up + Package Sent + Converted + Closed always sums to Total. */}
                 <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
-                        sub={rangeLabel}
+                        sub={`${rangeLabel} · ${newToday} new today`}
                         icon={Inbox}
                         iconText="text-dashboard-primary"
                     />
                     <StatCard
-                        label="New Today"
-                        value={newToday}
+                        label="New"
+                        value={newCount}
                         icon={Send}
                         iconText="text-dashboard-info"
-                        muted={submitted === 0}
+                        muted={newCount === 0}
                     />
                     <StatCard
                         label="In Progress"
@@ -893,23 +904,25 @@ export function SalesQueriesTable({
                         muted={followUpCount === 0}
                     />
                     <StatCard
-                        label="Closed"
-                        value={closedCount}
-                        icon={CircleX}
-                        iconText="text-dashboard-success"
+                        label="Package Sent"
+                        value={packageSentCount}
+                        icon={Package}
+                        iconText="text-dashboard-secondary"
+                        muted={packageSentCount === 0}
                     />
                     <StatCard
                         label="Converted"
                         value={bookedCount}
                         icon={UserCheck}
-                        iconText="text-dashboard-secondary"
+                        iconText="text-dashboard-success"
+                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
                     />
                     <StatCard
-                        label="Conv. Rate"
-                        value={`${convRate}%`}
-                        icon={TrendingUp}
-                        iconText="text-dashboard-accent"
-                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
+                        label="Closed"
+                        value={closedCount}
+                        icon={CircleX}
+                        iconText="text-dashboard-base-content"
+                        muted={closedCount === 0}
                     />
                 </StatGrid>
 
