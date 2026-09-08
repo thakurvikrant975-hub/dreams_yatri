@@ -63,6 +63,8 @@ const SOURCES = [
     { label: "WhatsApp Meta",    value: "WHATSAPP" },
     { label: "WhatsApp Google",  value: "WHATSAPP_GOOGLE" },
     { label: "Meta",             value: "META" },
+    { label: "SEO",              value: "SEO" },
+    { label: "Social Media",     value: "SOCIAL_MEDIA" },
     { label: "Website Form",     value: "WEBSITE_FORM" },
     { label: "Landing Page",     value: "LANDING_PAGE" },
     { label: "Referral",         value: "REFERRAL" },

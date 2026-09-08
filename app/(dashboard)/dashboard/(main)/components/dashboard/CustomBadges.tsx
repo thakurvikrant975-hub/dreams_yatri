@@ -21,6 +21,8 @@ import {
   Lock,
   CalendarClock,
   Megaphone,
+  Search,
+  Share2,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -49,6 +51,8 @@ export type QuerySource =
   | "CONTACT_FORM"
   | "REFERRAL"
   | "META"
+  | "SEO"
+  | "SOCIAL_MEDIA"
   | "OTHER";
 
 // ── Status Config ─────────────────────────────────────────────────────────────
@@ -187,6 +191,18 @@ const SOURCE_CONFIG: Record<
     icon: Megaphone,
     className:
       "bg-blue-50 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700",
+  },
+  SEO: {
+    label: "SEO",
+    icon: Search,
+    className:
+      "bg-teal-50 text-teal-700 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700",
+  },
+  SOCIAL_MEDIA: {
+    label: "Social Media",
+    icon: Share2,
+    className:
+      "bg-pink-50 text-pink-700 border-pink-300 dark:bg-pink-900/30 dark:text-pink-400 dark:border-pink-700",
   },
   PHONE_CALL: {
     label: "Phone Call",

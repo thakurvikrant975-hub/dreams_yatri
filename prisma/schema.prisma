@@ -4229,6 +4229,11 @@ enum QuerySource {
   /// Click-to-WhatsApp leads from Google Ads, as distinct from WHATSAPP
   /// (Meta's WhatsApp Business API) above.
   WHATSAPP_GOOGLE
+  /// Organic search — as distinct from META/WHATSAPP_GOOGLE, which are paid.
+  SEO
+  /// Organic social (Instagram/Facebook posts, etc.) — as distinct from META,
+  /// which is paid social advertising.
+  SOCIAL_MEDIA
 }
 
 enum GallerySourceType {
