@@ -26,6 +26,7 @@
     "test:money": "tsx scripts/test-money.ts",
     "test:bands": "tsx scripts/test-traveller-bands.ts",
     "test:policy": "tsx scripts/test-payment-policy.ts",
+    "test:offline-pay": "tsx --conditions=react-server --env-file=.env --env-file=.env.development.local scripts/test-offline-payment.ts",
     "test:cancel": "tsx scripts/test-cancellation-policy.ts",
     "test:lead-reqs": "tsx scripts/test-lead-requirements.ts",
     "test:phone": "tsx scripts/test-phone-identity.ts",

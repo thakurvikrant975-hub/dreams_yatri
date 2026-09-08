@@ -673,8 +673,32 @@ model Payment {
   rawResponse      Json?
   webhookEventId   String?
   purpose          PaymentPurpose @default(INITIAL)
+
+  /// ── Money taken outside the gateway ──────────────────────────────────────
+  /// Set only on gateway = OFFLINE rows: company UPI, bank transfer, cash.
+  /// There is no third party attesting to these, so the receipt image and the
+  /// name of whoever entered it are the whole audit trail — hence both are
+  /// required by recordOfflinePayment even though the columns are nullable
+  /// (gateway rows have neither).
+  recordedById     String?
+  recordedByName   String?
+  receiptUrl       String?
+  notes            String?
+
+  /// ── Reversal ─────────────────────────────────────────────────────────────
+  /// Voiding, never deleting. By the time an error is spotted the invoice
+  /// number is spent, the receipt is in the client's inbox and ops may have
+  /// acted — a deleted row leaves a hole in a GST sequence and no record of
+  /// why. Applies to any gateway, not just OFFLINE.
+  voidedAt         DateTime?
+  voidedById       String?
+  voidedByName     String?
+  voidReason       String?
+
   booking          Booking        @relation(fields: [bookingId], references: [id])
   user             User           @relation(fields: [userId], references: [id])
+  recordedBy       TeamMember?    @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  voidedBy         TeamMember?    @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
 
   @@index([bookingId])
   @@index([userId])
@@ -979,6 +1003,9 @@ model TeamMember {
   salesTeam              SalesTeam?        @relation("SalesTeamMembers", fields: [salesTeamId], references: [id])
   ledSalesTeam           SalesTeam?        @relation("SalesTeamLeader")
   salesTargets           SalesTarget[]
+
+  paymentsRecorded  Payment[]  @relation("PaymentRecordedBy")
+  paymentsVoided    Payment[]  @relation("PaymentVoidedBy")
 
   @@index([email])
   @@index([employeeId])
@@ -4078,6 +4105,12 @@ enum PaymentStatus {
   PARTIALLY_REFUNDED
   TESTING
   FAILED
+  /// Reversed after the fact — a payment that was recorded in error.
+  /// Deliberately a STATUS rather than a `voidedAt` flag: every existing money
+  /// query already filters on status (`{ in: ["ADVANCE_PAID","FULLY_PAID"] }`),
+  /// so a voided row drops out of sums, reports and queues by construction
+  /// instead of needing `voidedAt: null` remembered at each call site.
+  VOIDED
 }
 
 enum PaymentMethod {
@@ -4087,6 +4120,12 @@ enum PaymentMethod {
   WALLET
   EMI
   CASH
+  /// Offline rails. NEFT/IMPS/RTGS is not NET_BANKING (which means a bank's
+  /// online checkout via a gateway), and a cheque is not CASH — both show on
+  /// invoices and in accounting, so folding them into a near-enough value
+  /// would quietly falsify the record.
+  BANK_TRANSFER
+  CHEQUE
 }
 
 enum PaymentGateway {
