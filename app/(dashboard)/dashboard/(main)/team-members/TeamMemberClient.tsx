@@ -1,7 +1,9 @@
 // app/dashboard/team-members/page.tsx
 import { Suspense } from "react";
-import { IdCardLanyard } from "lucide-react";
+import Link from "next/link";
+import { IdCardLanyard, LayoutGrid } from "lucide-react";
 import { Skeleton } from "../components/ui/skeleton";
+import { Button } from "../components/ui/button";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -73,7 +75,16 @@ async function PageContent({ searchParams }: PageProps) {
         title="Team Members"
         description="Manage your team, roles, and access"
         icon={IdCardLanyard}
-        actions={<CreateTeamMemberDialog departments={departments} roles={roles} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link href="/dashboard/team-members/cards">
+                <LayoutGrid className="h-4 w-4 mr-1.5" /> Card View
+              </Link>
+            </Button>
+            <CreateTeamMemberDialog departments={departments} roles={roles} />
+          </div>
+        }
       />
       <TeamMembersTable
         paginated={paginated}
