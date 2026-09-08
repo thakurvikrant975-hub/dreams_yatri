@@ -2971,7 +2971,7 @@ function DayCardPreview({
         </div>
       </div>
 
-      <div className="px-3.5 py-3 space-y-3">
+      <div className="px-3.5 py-3 space-y-8 lg:space-y-7">
         {/* Rendered even when empty in the builder, so there's something to
             click; still hidden entirely on the client-facing document. */}
         <EditableText
@@ -3269,7 +3269,12 @@ function DayCardPreview({
                   ].filter(Boolean).join(" · ") || null}
                 />
 
-                <div className={cn("flex gap-5", SUBHEAD_INDENT)}>
+                {/* Stacks on phones. The photo is a fixed 208px and shrink-0,
+                    so side-by-side it left the text column about 120px wide on
+                    a 390px screen — the vehicle name, its type and its seat
+                    count wrapping a word per line beside a picture. Only below
+                    sm: a tablet has room for both. */}
+                <div className={cn("flex flex-col sm:flex-row gap-3 sm:gap-5", SUBHEAD_INDENT)}>
                   <div className="flex-1 min-w-0 space-y-2">
                     {day.transport && (
                       <p className="text-[16px] leading-[22px] font-semibold font-heading text-neutral-900 text-[14.5px]">
@@ -3310,11 +3315,11 @@ function DayCardPreview({
                   </div>
 
                   {(day.transportPhoto || onImageChange) && (
-                    <div className="group/img relative rounded-lg overflow-hidden w-52 h-36 shrink-0">
+                    <div className="group/img relative rounded-lg overflow-hidden w-full sm:w-52 h-44 sm:h-36 shrink-0">
                       {day.transportPhoto ? (
                         <>
                           {/* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */}
-                          <img src={day.transportPhoto} alt="" className="w-52 h-36 object-cover" />
+                          <img src={day.transportPhoto} alt="" className="w-full h-full object-cover" />
                           {day.transport && (
                             <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/20 to-transparent px-2 py-1.5 pt-6">
                               <p className="text-[14px] leading-[18px] text-white font-medium truncate">{day.transport}</p>
@@ -3322,7 +3327,7 @@ function DayCardPreview({
                           )}
                         </>
                       ) : (
-                        <div className="w-52 h-36 bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center">
+                        <div className="w-full h-full bg-neutral-50 border-2 border-dashed border-neutral-200 flex items-center justify-center">
                           <ImageIcon size={18} className="text-neutral-300" />
                         </div>
                       )}
@@ -3862,6 +3867,19 @@ const PRINT_STYLES = `
   .itinerary-print-area[data-exporting] .lg\\:w-50         { width: 12.5rem; }
   .itinerary-print-area[data-exporting] .lg\\:w-auto       { width: auto; }
   .itinerary-print-area[data-exporting] .lg\\:block        { display: block; }
+
+  /* The "sm:" tier, pinned for the same reason. It was never listed here:
+     when the export took a fixed 794px viewport the clone always evaluated
+     sm: as true, so the omission was invisible. Now that the clone renders at
+     the real window width, exporting from a narrow window would bake the
+     phone layout into the PDF — a stacked price summary and a full-bleed
+     transport photo on an A4 sheet. */
+  .itinerary-print-area[data-exporting] .sm\\:flex-row     { flex-direction: row; }
+  .itinerary-print-area[data-exporting] .sm\\:flex-wrap    { flex-wrap: wrap; }
+  .itinerary-print-area[data-exporting] .sm\\:items-end    { align-items: flex-end; }
+  .itinerary-print-area[data-exporting] .sm\\:gap-5        { gap: 1.25rem; }
+  .itinerary-print-area[data-exporting] .sm\\:w-52         { width: 13rem; }
+  .itinerary-print-area[data-exporting] .sm\\:h-36         { height: 9rem; }
   /* Same shape Tailwind's own divide-x generates — the rule is on the parent
      but the border lands on every child after the first. */
   .itinerary-print-area[data-exporting] .lg\\:divide-x > :not([hidden]) ~ :not([hidden]) {
