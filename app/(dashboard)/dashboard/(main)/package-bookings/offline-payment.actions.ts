@@ -43,6 +43,26 @@ async function requireMember(): Promise<{ ok: true; member: Member } | { ok: fal
     return { ok: true, member };
 }
 
+/**
+ * A selling role may only touch money on its OWN bookings.
+ *
+ * The list and detail pages already scope this way, but a page check is not an
+ * authorisation check: a server action is callable directly with any booking
+ * id, and booking ids are guessable and shareable — the detail page says as
+ * much where it notFounds a booking that is not the viewer's. Without this an
+ * exec who can reach the screen at all could settle or void a payment on a
+ * colleague's booking.
+ *
+ * Mirrors the page's rule exactly so the two cannot disagree: team leaders
+ * oversee the desk, and every non-selling role is ops or administration.
+ */
+function outOfScope(member: Member, salesAgentId: string | null): boolean {
+    const role = (member.teamRole?.name ?? "").trim().toLowerCase();
+    const sells = role.includes("sales") || role.includes("travel expert");
+    const oversees = role.includes("team leader");
+    return sells && !oversees && salesAgentId !== member.id;
+}
+
 /** The rails money actually arrives on outside the gateway. */
 const OFFLINE_METHODS = ["UPI", "BANK_TRANSFER", "CASH", "CHEQUE"] as const;
 
@@ -99,10 +119,13 @@ export async function recordOfflinePayment(raw: RecordOfflinePaymentInput): Prom
         where: { id: input.bookingId },
         select: {
             id: true, bookingNumber: true, userId: true, currency: true, paymentPlan: true,
-            totalAmount_paise: true, advanceAmount_paise: true,
+            totalAmount_paise: true, advanceAmount_paise: true, salesAgentId: true,
         },
     });
     if (!booking) return { success: false, error: "Booking not found." };
+    if (outOfScope(gate.member, booking.salesAgentId)) {
+        return { success: false, error: "This booking belongs to another executive." };
+    }
 
     // What has actually been settled so far. Voided rows are excluded by the
     // status filter, which is the whole reason VOIDED is a status.
@@ -254,9 +277,15 @@ export async function voidOfflinePayment(raw: z.input<typeof voidSchema>): Promi
 
     const payment = await db.payment.findUnique({
         where: { id: parsed.data.paymentId },
-        select: { id: true, gateway: true, bookingId: true, amount_paise: true, status: true },
+        select: {
+            id: true, gateway: true, bookingId: true, amount_paise: true, status: true,
+            booking: { select: { salesAgentId: true } },
+        },
     });
     if (!payment) return { success: false, error: "Payment not found." };
+    if (outOfScope(gate.member, payment.booking.salesAgentId)) {
+        return { success: false, error: "This booking belongs to another executive." };
+    }
 
     // A gateway payment is the gateway's record, not ours, and unwinding one
     // here would leave our books disagreeing with Razorpay's. Those are
