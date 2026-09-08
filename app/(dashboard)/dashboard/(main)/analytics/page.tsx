@@ -15,6 +15,7 @@ import { getLeadManagerAnalytics } from "../actions/lead-manager-analytics-actio
 import { getTeamLeaderAnalytics } from "../actions/team-leader-analytics-actions";
 import { getSalesTeamAnalytics } from "../sales-teams/sales-team-analytics-actions";
 import { getLeaderScope } from "@/app/lib/sales-teams/leader-scope";
+import { istDayOffset } from "../lead-report/ist";
 import type { CurrentMember } from "@/app/types/members";
 
 export const metadata: Metadata = {
@@ -80,8 +81,10 @@ const ANALYTICS_MAP: Record<string, AnalyticsSection> = {
   "team leader": TeamLeaderAnalyticsSection,
 };
 
+// The IST calendar day, not UTC's. toISOString() gave the UTC date, so
+// between IST midnight and 5:30am the page defaulted to yesterday's report.
 function todayStr() {
-  return new Date().toISOString().split("T")[0];
+  return istDayOffset(0);
 }
 
 export default async function AnalyticsPage({

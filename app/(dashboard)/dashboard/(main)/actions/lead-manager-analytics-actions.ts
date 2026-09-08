@@ -1,5 +1,7 @@
 import "server-only";
 import { db } from "@/app/lib/db";
+import { istDayBounds } from "@/app/lib/ist-window";
+import { istDayKey, IST_TZ } from "../lead-report/ist";
 
 const MAX_DAYS = 366;
 
@@ -45,10 +47,14 @@ const FALLBACK_PALETTE = [
 const DEST_PALETTE = FALLBACK_PALETTE;
 
 function fmtDay(d: Date): string {
-  return new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(d);
+  // IST, like the key below — the trend's cursor walks IST midnights, and
+  // formatted on a UTC server each of those reads back as the day before.
+  return new Intl.DateTimeFormat("en-IN", { timeZone: IST_TZ, day: "numeric", month: "short" }).format(d);
 }
+/** The IST day an instant falls on. toISOString() gave the UTC day, so every
+ * lead between IST midnight and 5:30am landed in the previous bucket. */
 function dayKey(d: Date): string {
-  return d.toISOString().split("T")[0];
+  return istDayKey(d);
 }
 function titleCase(s: string): string {
   return s.trim().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
@@ -97,6 +103,8 @@ export type LeadManagerAnalyticsData = {
     converted: number;
     convRate: number;
     uniqueDestinations: number;
+    /** Of the leads received in range, how many still have no owner. */
+    unassignedInRange: number;
   };
   dailyTrend: { date: string; leads: number }[];
   byDestination: { name: string; value: number; color: string }[];
@@ -105,8 +113,10 @@ export type LeadManagerAnalyticsData = {
    * cap) with its own per-channel lead split — feeds the PDF report's
    * per-destination source breakdown. */
   destinationChannelBreakdown: DestinationChannelBreakdown[];
-  /** How many leads (in range) are currently assigned to each team member —
-   * "Unassigned" bucket included when relevant. */
+  /** How many leads each exec was handed in range, counted on the day of the
+   * handover rather than the day the lead came in. There is no "Unassigned"
+   * row: a lead nobody has been given is not a handover — that count is
+   * `summary.unassignedInRange`. */
   byTeamMember: { name: string; value: number }[];
   todaysLeads: LeadRow[];
   reportRows: LeadRow[];
@@ -131,21 +141,21 @@ function toLeadRow(q: {
 }
 
 export async function getLeadManagerAnalytics(fromStr: string, toStr: string): Promise<LeadManagerAnalyticsData> {
-  const from = new Date(`${fromStr}T00:00:00`);
-  const to = new Date(`${toStr}T23:59:59.999`);
+  // The picker's dates are IST wall-clock dates and the server runs in UTC,
+  // so both ends need the offset or the window silently slides by 5½ hours —
+  // a "today" report would start at 5:30am IST and run into tomorrow morning.
+  const from = new Date(`${fromStr}T00:00:00+05:30`);
+  const to = new Date(`${toStr}T23:59:59.999+05:30`);
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  const { start: todayStart, end: todayEnd } = istDayBounds();
 
   const selectFields = {
     id: true, name: true, phone: true, destination: true,
     source: true, utmSource: true, status: true,
-    assignedToName: true, createdAt: true,
+    assignedTo: true, assignedToName: true, createdAt: true,
   } as const;
 
-  const [rangeLeads, todaysLeadsRaw] = await Promise.all([
+  const [rangeLeads, todaysLeadsRaw, assignedInRange] = await Promise.all([
     db.package_queries.findMany({
       where: { deletedAt: null, createdAt: { gte: from, lte: to } },
       select: selectFields,
@@ -155,6 +165,22 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
       where: { deletedAt: null, createdAt: { gte: todayStart, lte: todayEnd } },
       select: selectFields,
       orderBy: { createdAt: "desc" },
+    }),
+    /*
+     * Handovers, not intake — this is the one figure in the report that is
+     * about the day's assignment work rather than the day's lead flow, so it
+     * has to be windowed on assignedAt.
+     *
+     * Keyed on createdAt (and grouped by whoever happened to own the lead
+     * now) it answered a different question: a lead that came in at 11pm and
+     * reached an exec the next morning was counted on the night it arrived,
+     * so a "today" report showed the exec fewer leads than the assignment
+     * panel and than the mails that actually went out. The two can never be
+     * reconciled that way — an exec handed 8 leads today saw 7.
+     */
+    db.package_queries.findMany({
+      where: { deletedAt: null, assignedTo: { not: null }, assignedAt: { gte: from, lte: to } },
+      select: { assignedToName: true },
     }),
   ]);
 
@@ -222,15 +248,25 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     };
   });
 
-  // ── Leads by team member ─────────────────────────────────────────────────
+  // ── Leads handed out, per exec ───────────────────────────────────────────
+  // Counted off `assignedInRange`, so this is every handover made in the
+  // range whichever day the lead itself arrived. It ties out against the
+  // day's assignment mails and against the "Today's Query Assignments" panel,
+  // which counts the same way.
   const memberCounts = new Map<string, number>();
-  for (const q of rangeLeads) {
-    const name = q.assignedToName?.trim() || "Unassigned";
+  for (const q of assignedInRange) {
+    const name = q.assignedToName?.trim() || "Unnamed";
     memberCounts.set(name, (memberCounts.get(name) ?? 0) + 1);
   }
   const byTeamMember = [...memberCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([name, value]) => ({ name, value }));
+
+  // Reported alongside rather than as a row in the table above: these leads
+  // were never handed to anyone, so they belong to no exec and must not be
+  // added into a total of handovers. Windowed on intake, since the question
+  // is "of what came in, what is still sitting?".
+  const unassignedInRange = rangeLeads.filter((q) => !q.assignedTo).length;
 
   // ── Daily trend ──────────────────────────────────────────────────────────
   const dayBuckets = new Map<string, number>();
@@ -239,15 +275,15 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     dayBuckets.set(key, (dayBuckets.get(key) ?? 0) + 1);
   }
   const dailyTrend: LeadManagerAnalyticsData["dailyTrend"] = [];
-  const cursor = new Date(from);
-  cursor.setHours(0, 0, 0, 0);
-  const end = new Date(to);
-  end.setHours(0, 0, 0, 0);
+  // `from` is already IST midnight; IST is a fixed +05:30 with no DST, so a
+  // flat 24 hours walks the calendar correctly. setDate/setHours would have
+  // stepped the server's own midnight, which is 5:30am in the office.
+  let cursor = new Date(from);
   let guard = 0;
-  while (cursor <= end && guard < MAX_DAYS) {
+  while (cursor <= to && guard < MAX_DAYS) {
     const key = dayKey(cursor);
     dailyTrend.push({ date: fmtDay(cursor), leads: dayBuckets.get(key) ?? 0 });
-    cursor.setDate(cursor.getDate() + 1);
+    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
     guard += 1;
   }
 
@@ -258,6 +294,7 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
       converted,
       convRate: rangeLeads.length > 0 ? Math.round((converted / rangeLeads.length) * 100) : 0,
       uniqueDestinations,
+      unassignedInRange,
     },
     dailyTrend,
     byDestination,
