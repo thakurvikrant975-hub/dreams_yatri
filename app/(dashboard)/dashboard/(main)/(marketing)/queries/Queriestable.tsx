@@ -18,7 +18,8 @@ import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/C
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { QueryTimelineSheet } from "./QueryTimelineSheet";
 import { getQueryById } from "./actions";
-import type { PackageQuery, RejectionReason } from "./actions";
+import type { PackageQuery, RejectionReason, CallLogStatus } from "./actions";
+import { cn } from "@/app/lib/utils";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
@@ -38,6 +39,14 @@ type Props = { queries: PackageQuery[]; reasons: RejectionReason[] };
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+// One dot per logged call, oldest first — same color language as sales-query's
+// CallLogDialog (green=connected, yellow=not picked, red=declined).
+const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
+    CONNECTED:  "bg-green-500",
+    NOT_PICKED: "bg-yellow-500",
+    DECLINED:   "bg-red-500",
+};
 
 const STATUS_FILTER_OPTIONS = [
     { label: "Submitted", value: "SUBMITTED" },
@@ -275,6 +284,19 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                         <p className="text-[11px] text-dashboard-base-content/80 truncate max-w-[180px]">
                             {q.email}
                         </p>
+                    )}
+                    {q.callLogStatuses.length > 0 && (
+                        <div
+                            title={`${q.callLogStatuses.length} call${q.callLogStatuses.length > 1 ? "s" : ""} logged`}
+                            className="flex items-center gap-1"
+                        >
+                            {q.callLogStatuses.map((status, i) => (
+                                <span
+                                    key={i}
+                                    className={cn("h-1.5 w-1.5 rounded-full shrink-0", CALL_STATUS_DOT[status])}
+                                />
+                            ))}
+                        </div>
                     )}
                     {q.assignedTo && (
                         <div className="flex items-center gap-1 text-[10px] text-dashboard-primary mt-0.5">

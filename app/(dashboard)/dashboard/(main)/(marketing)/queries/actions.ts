@@ -173,7 +173,14 @@ export type PackageQuery = {
      * packageSentAt; falls back to the first package on file if none has
      * been sent yet. */
     packagePrice: number | null;
+    /** One entry per logged call, oldest first — mirrors SalesQueryRow.callLogStatuses
+     * in the sales-query route so the Lead column can render the same colored dots. */
+    callLogStatuses: CallLogStatus[];
 };
+
+/** Outcome of a single logged call — kept as its own union (rather than importing
+ * from the sales-query route) so this route doesn't reach across route groups. */
+export type CallLogStatus = "CONNECTED" | "NOT_PICKED" | "DECLINED";
 
 // Aliases for backwards compatibility
 export type PackageQueryType = PackageQuery;
@@ -772,6 +779,25 @@ export async function getQueries(): Promise<PackageQuery[]> {
         orderBy: { createdAt: "desc" },
     }) as any[];
 
+    // Call logs live as QueryTimeline rows (meta.kind === "CALL_LOG"), not their
+    // own table — same batched second lookup as getSalesQueries() in the
+    // sales-query route, so the Lead column can render the same colored dots.
+    const queryIds = queries.map((q) => q.id);
+    const callLogRows = queryIds.length > 0
+        ? await db.queryTimeline.findMany({
+            where:   { queryId: { in: queryIds }, meta: { path: ["kind"], equals: "CALL_LOG" } },
+            orderBy: { createdAt: "asc" },
+            select:  { queryId: true, meta: true },
+        })
+        : [];
+    const callLogStatusesByQueryId = new Map<string, CallLogStatus[]>();
+    for (const row of callLogRows) {
+        const status = (row.meta as { status?: CallLogStatus } | null)?.status ?? "CONNECTED";
+        const arr = callLogStatusesByQueryId.get(row.queryId) ?? [];
+        arr.push(status);
+        callLogStatusesByQueryId.set(row.queryId, arr);
+    }
+
     return queries.map((q) => {
         const sentPackage = q.custom_packages?.find((p: { sentAt: Date | null }) => p.sentAt);
         return {
@@ -780,6 +806,7 @@ export async function getQueries(): Promise<PackageQuery[]> {
             totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
             packageSentAt: sentPackage?.sentAt ?? null,
             packagePrice: (sentPackage ?? q.custom_packages?.[0])?.totalPrice ?? null,
+            callLogStatuses: callLogStatusesByQueryId.get(q.id) ?? [],
         };
     }) as PackageQuery[];
 }
