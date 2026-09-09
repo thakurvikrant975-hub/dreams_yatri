@@ -9,7 +9,8 @@ import { getViewAsScope, type ViewAsScope } from "@/app/(dashboard)/dashboard/(m
 const COOKIE = "dy_view_as";
 
 /** Resolves the caller's View As scope — null if they aren't allowed to use
- * it at all, otherwise "all" (FSD / allowlist) or "team" (a Team Leader,
+ * it at all, otherwise "all" (FSD / allowlist), "sales-floor" (a Sales
+ * Manager, every executive and team leader), or "team" (a Team Leader,
  * restricted to the roster of the team they lead). */
 async function currentScope(): Promise<ViewAsScope | null> {
   const session = await dashboardAuth();
@@ -32,6 +33,17 @@ export type ViewableMember = {
   department: { name: string } | null;
 };
 
+// Matches getSalesMembers' own "Sales Executive" match and getLeaderScope's
+// "team leader" match — kept in sync with those rather than a shared
+// constant since each caller filters a different shape (Prisma where vs. a
+// role-name string).
+const SALES_FLOOR_ROLE_FILTER = {
+  OR: [
+    { teamRole: { name: { equals: "Sales Executive", mode: "insensitive" as const } } },
+    { teamRole: { name: { contains: "Team Leader", mode: "insensitive" as const } } },
+  ],
+};
+
 export async function getViewableMembers(): Promise<ViewableMember[]> {
   const scope = await currentScope();
   if (!scope) return [];
@@ -40,6 +52,7 @@ export async function getViewableMembers(): Promise<ViewableMember[]> {
     where: {
       isActive: true,
       ...(scope.kind === "team" ? { id: { in: scope.memberIds } } : {}),
+      ...(scope.kind === "sales-floor" ? SALES_FLOOR_ROLE_FILTER : {}),
     },
     select: {
       id: true,
@@ -57,10 +70,15 @@ export async function getViewableMembers(): Promise<ViewableMember[]> {
 export async function startViewingAs(memberId: string): Promise<{ success: boolean }> {
   const scope = await currentScope();
   if (!scope) return { success: false };
-  // A Team Leader may only View As someone on the team they lead — re-checked
-  // here (not just in the picker's list) since this action can be called
-  // directly with any id.
+  // A Team Leader may only View As someone on the team they lead, and a
+  // Sales Manager only someone on the sales floor — both re-checked here
+  // (not just in the picker's already-filtered list) since this action can
+  // be called directly with any id.
   if (scope.kind === "team" && !scope.memberIds.includes(memberId)) return { success: false };
+  if (scope.kind === "sales-floor") {
+    const onFloor = await db.teamMember.count({ where: { id: memberId, ...SALES_FLOOR_ROLE_FILTER } });
+    if (!onFloor) return { success: false };
+  }
   const exists = await db.teamMember.count({ where: { id: memberId } });
   if (!exists) return { success: false };
   (await cookies()).set(COOKIE, memberId, {

@@ -39,26 +39,35 @@ type MemberResult = Prisma.TeamMemberGetPayload<{ select: typeof MEMBER_SELECT }
 const VIEW_AS_EMAIL_ALLOWLIST = new Set(["karan@dreamsyatri.com"]);
 
 /** Who may use "View As" — every Full Stack Developer, anyone in
- * VIEW_AS_EMAIL_ALLOWLIST regardless of role, and every Team Leader (scoped
- * to their own team's roster — see getViewAsScope). */
+ * VIEW_AS_EMAIL_ALLOWLIST regardless of role, every Sales Manager (full
+ * roster — see getViewAsScope), and every Team Leader (scoped to their own
+ * team's roster — see getViewAsScope). */
 export function canUseViewAs(email: string | null | undefined, roleName: string | null | undefined): boolean {
   const role = (roleName ?? "").trim().toLowerCase();
   if (role === "full stack developer") return true;
+  if (role.includes("sales manager")) return true;
   if (role.includes("team leader")) return true;
   return !!email && VIEW_AS_EMAIL_ALLOWLIST.has(email.toLowerCase());
 }
 
 export type ViewAsScope =
   | { kind: "all" }
+  // The whole sales org — every Sales Executive plus every Team Leader —
+  // for a Sales Manager. Not "all": she oversees the sales floor, not FSDs,
+  // marketing, or any other department.
+  | { kind: "sales-floor" }
   | { kind: "team"; teamId: string | null; memberIds: string[] };
 
 /**
  * What an approved View As user may actually pick from. Full Stack
  * Developers and the explicit email allowlist get the whole company
- * roster; a Team Leader is scoped to only the SalesTeam they lead (empty
- * roster if they don't currently lead one, same "none" fallback
- * getPackageReviewScope uses). Returns null if the caller can't use View
- * As at all — callers should treat that the same as an empty roster.
+ * roster; a Sales Manager gets every Sales Executive and Team Leader
+ * company-wide (she oversees the whole sales floor, same "company" scope
+ * getPackageReviewScope already grants her elsewhere); a Team Leader is
+ * scoped to only the SalesTeam they lead (empty roster if they don't
+ * currently lead one, same "none" fallback getPackageReviewScope uses).
+ * Returns null if the caller can't use View As at all — callers should
+ * treat that the same as an empty roster.
  */
 export async function getViewAsScope(
   email: string,
@@ -70,6 +79,10 @@ export async function getViewAsScope(
   const role = (roleName ?? "").trim().toLowerCase();
   if (role === "full stack developer" || VIEW_AS_EMAIL_ALLOWLIST.has(email.toLowerCase())) {
     return { kind: "all" };
+  }
+
+  if (role.includes("sales manager")) {
+    return { kind: "sales-floor" };
   }
 
   if (role.includes("team leader")) {
