@@ -33,6 +33,16 @@ export interface RoomSelection {
   thumbnail?:     string | null;
   roomCapacity?:  number | null;
   roomSpecs?:     string | null;
+  /** The rate plan this room was picked on — CP, MAP, AP.
+   *
+   * A hotel commonly sells ONE room type on several plans, which the catalog
+   * stores as several hotel_room_pricing rows sharing a room name. Without
+   * this, two such rows are indistinguishable everywhere the label is shown:
+   * the picker offers what reads as the same room twice, and the exec has no
+   * way to tell which of them they added. `label` deliberately doesn't carry
+   * it — that string reaches the client's document, where the meal plan is
+   * already stated for the stay as a whole. */
+  planName?:      string | null;
 }
 
 /** Same pattern as RoomSelection, for an additional cab on the same day
@@ -65,6 +75,7 @@ export function parseRoomSelections(value: unknown): RoomSelection[] {
       thumbnail: typeof v.thumbnail === "string" ? v.thumbnail : null,
       roomCapacity: typeof v.roomCapacity === "number" ? v.roomCapacity : null,
       roomSpecs: typeof v.roomSpecs === "string" ? v.roomSpecs : null,
+      planName: typeof v.planName === "string" ? v.planName : null,
     }))
     .filter((v) => Number.isFinite(v.roomPricingId));
 }

@@ -1,6 +1,7 @@
 import { CheckCircle, XCircle, Calendar, Milestone, Sparkles, IndianRupee, Info } from "lucide-react";
 import { Text } from "@/app/components/ui/Typography";
 import { deriveTransportFields } from "@/app/lib/deriveTicketTransport";
+import { pricingPartyOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { ItineraryMap } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryMap";
 import {
   DaySummaryTable, TicketsSection,
@@ -15,6 +16,11 @@ import {
  * between the two views. */
 export function CustomHighlightsTab({ form }: { form: PreviewData }) {
   const transport = deriveTransportFields(form.tickets);
+  // Beds are needed by age band, not by the box a traveller was typed into —
+  // pricingPartyOf is what the day cards on this same page size their rooms
+  // by (see CustomItinerarySection), and the summary table has to agree with
+  // the cards it summarises.
+  const pricedParty = pricingPartyOf(form);
 
   return (
     <div className="flex flex-col gap-8">
@@ -128,7 +134,19 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
           <Calendar size={16} className="text-primary-500" />
           <Text size="sm" weight="bold" intent="primary" className="font-heading">Day-wise Summary</Text>
         </div>
-        <DaySummaryTable itineraries={form.itineraries} travelDate={form.travelDate} stops={form.stops} />
+        {/* The party has to be passed, or the table sizes every night for
+            nobody: adults/childCount default to 0, roomsNeededFor returns 1
+            for an empty party, and the client's own copy of their trip read
+            "1 room" on every day of it — for a nine-person booking, beside a
+            day card that correctly said four. Same figures the day cards on
+            this page are already built from. */}
+        <DaySummaryTable
+          itineraries={form.itineraries}
+          travelDate={form.travelDate}
+          stops={form.stops}
+          adults={pricedParty.adults}
+          childCount={pricedParty.children}
+        />
       </div>
 
       {form.tickets.length > 0 && <TicketsSection tickets={form.tickets} />}

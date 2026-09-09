@@ -132,6 +132,25 @@ async function main() {
     extraLine != null && totalOn(2) === totalOn(1) + extraLine.total);
   check("...priced at that room's own nightly rate × quantity",
     extraLine != null && extraLine.total === extraLine.pricePerRoom * EXTRA_QTY);
+
+  // A rate row costs what it costs, whichever slot of the night it fills.
+  //
+  // The combo path used to resolve the rate sheet's occupancy tiers and then
+  // discard them, charging extra rooms at the flat price_per_night while the
+  // primary room beside them was charged at its tier. On any hotel priced by
+  // occupancy that is a straight mispricing, and it reached costing as two
+  // lines at the same property with two per-room figures and nothing on screen
+  // to explain the difference. Priced here both ways — as the night's primary
+  // room, at the occupancy an extra room is assumed to hold, and as an extra —
+  // the two have to agree.
+  const beds = second.room?.max_occupancy ?? 2;
+  const asPrimary = await computeBuilderHotelPricing({
+    travelDate,
+    adults: EXTRA_QTY * beds, children: 0, childrenAges: [], infantAges: [],
+    days: [{ day: 1, roomPricingId: second.id, roomsCount: EXTRA_QTY, manualExtraBeds: 0 }],
+  });
+  check("a room costs the same as a combo room as it does as the night's primary",
+    extraLine != null && asPrimary.days[0]?.pricePerRoom === extraLine.pricePerRoom);
   // Same line, day number aside: the primary is priced identically whether or
   // not a second room type sits beside it.
   const withoutDay = (l: (typeof result.days)[number] | undefined) =>

@@ -31,7 +31,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type {
   StopInput, DayItinerary, TicketInput, AddonInput, ExtraPolicyItems,
 } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
-import { invalidateStaleOverrides, emptyDay } from "./day-mutations";
+import { invalidateStaleOverrides, emptyDay, stayRun, mapStayRun } from "./day-mutations";
 import type { PolicySection } from "@/app/(dashboard)/dashboard/(main)/itinerary-settings/actions";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,6 +246,25 @@ type BuilderContextValue = {
    * (picking a hotel, reordering activities). Both go through replaceDay
    * below, so no edit surface can skip the override invalidation. */
   replaceDay: (day: number, fn: (day: DayItinerary) => DayItinerary) => void;
+  /**
+   * Same edit applied to EVERY night of the stay this day belongs to.
+   *
+   * A stay is one booking. How many rooms of which types it holds, and how
+   * many mattresses go in them, are properties of that booking and not of the
+   * night the exec happened to have open — a hotel cannot honour three Deluxe
+   * on Monday and three Deluxe plus two Standard on Tuesday off one
+   * reservation. Editing those through replaceDay wrote the change to one
+   * night and left the rest of the run behind, which is how a combo added on
+   * night 1 never reached nights 2 and 3, and how the same room came out of
+   * costing at two different prices on consecutive nights.
+   *
+   * The run is stayRun's — consecutive nights sharing this day's
+   * roomPricingId — so a day with no catalog room, or a re-visit to the same
+   * property later in the trip, is a run of one and this behaves exactly like
+   * replaceDay. Returns the day numbers actually written, so the caller can
+   * say so rather than leaving the exec to discover it.
+   */
+  replaceStay: (day: number, fn: (day: DayItinerary) => DayItinerary) => number[];
   /** Inserts a blank day after this one, renumbering the rest. */
   addDayAfter: (day: number) => void;
   /** Deletes a day and everything on it, renumbering the rest. */
@@ -317,6 +336,20 @@ function replaceDay(
   };
 }
 
+/** replaceDay, across every night of one stay — see replaceStay on the
+ * context. Goes through the same per-day path, so the override invalidation
+ * applies to each night it touches rather than only the one that was open. */
+function replaceStayRun(
+  form: PackageForm,
+  day: number,
+  fn: (day: DayItinerary) => DayItinerary,
+): PackageForm {
+  return {
+    ...form,
+    itineraries: mapStayRun(form.itineraries, day, (it) => invalidateStaleOverrides(it, fn(it))),
+  };
+}
+
 const BuilderContext = createContext<BuilderContextValue | null>(null);
 
 export function PackageBuilderProvider({
@@ -374,6 +407,14 @@ export function PackageBuilderProvider({
     },
     updateDay: (day, patch) => setForm((f) => replaceDay(f, day, (it) => ({ ...it, ...patch }))),
     replaceDay: (day, fn) => setForm((f) => replaceDay(f, day, fn)),
+    replaceStay: (day, fn) => {
+      setForm((f) => replaceStayRun(f, day, fn));
+      // Read off THIS render's form, not the updater's: the write itself goes
+      // through the functional form (so it can't clobber a concurrent edit),
+      // and this return value only names the nights for the caller's toast —
+      // which is the run the exec is looking at as they click.
+      return stayRun(form.itineraries, day);
+    },
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),

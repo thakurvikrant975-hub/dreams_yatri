@@ -535,6 +535,7 @@ export interface PreviewData {
         roomSpecs?: string | null;
         thumbnail?: string | null;
         hotelId?: number | null;
+        planName?: string | null;
       }[];
     }>;
   }[];
@@ -1580,6 +1581,25 @@ export function DaySummaryTable({
             // cabs only ever showed the first. Same drop-unfinished-rows
             // filter as that section.
             const extraCabsForDay = (d.extraCabs ?? []).filter((c) => c.label.trim());
+            // The other room types booked at this same hotel for this night —
+            // the room half of the extraCabs line above. Same
+            // roomPricingId > 0 filter the day card and occupancyText use, so
+            // a half-picked row can't reach the table.
+            const extraRoomsForDay = (d.extraRooms ?? []).filter((r) => r.roomPricingId > 0);
+            // Through the shared helpers, deliberately: primaryRoomCount is
+            // what the day card, the client's page and the pricing engine all
+            // size the primary by, and the total below is what occupancyText
+            // prints. Re-deriving either here is how this cell came to
+            // disagree with the card directly beneath it.
+            const primaryRooms = primaryRoomCount(d, adults, childCount);
+            const totalRooms = primaryRooms
+              + extraRoomsForDay.reduce((sum, r) => sum + Math.max(1, r.quantity), 0);
+            const autoMattresses = planRoomOccupancy(adults, childCount, {
+              max_occupancy: d.accommodationRoomCapacity,
+              extra_bed_capacity: d.accommodationExtraBedCapacity,
+              max_adults: d.accommodationMaxAdults,
+              max_children: d.accommodationMaxChildren,
+            }, d.roomsCount).mattresses;
             return (
               <tr
                 key={d.day}
@@ -1651,26 +1671,39 @@ export function DaySummaryTable({
                           <span className="text-neutral-900">{titleCase(hotelName ?? d.accommodation)}</span>
                           <StayStars raw={d.accommodationStarRating} />
                         </span>
+                        {/* Every room type the night holds, the day's own
+                            first — not the primary alone.
+                            `d.accommodation` names one room, so a combo night
+                            showed "Deluxe Room" and a room count that didn't
+                            match it, while the Standard rooms the client is
+                            actually being given appeared nowhere in the table.
+                            The detailed day card below has listed all of them
+                            since combos shipped; this, the densest view of the
+                            trip and the one people check, had never been
+                            taught about them — the same gap extra CABS were
+                            fixed for in this cell earlier. */}
                         {roomName && (
-                          <span className={cn(mutedLine, "mt-0.5")}>{titleCase(roomName)}</span>
+                          <span className={cn(mutedLine, "mt-0.5")}>
+                            {primaryRooms > 1 ? `${primaryRooms}× ` : ""}{titleCase(roomName)}
+                          </span>
                         )}
+                        {extraRoomsForDay.map((r, ri) => (
+                          <span key={ri} className={cn(mutedLine, "mt-0.5")}>
+                            + {r.quantity > 1 ? `${r.quantity}× ` : ""}
+                            {titleCase(splitManualHotelName(r.label).manualRoomName ?? r.label)}
+                          </span>
+                        ))}
                         {(() => {
-                          const plan = planRoomOccupancy(adults, childCount, {
-                            max_occupancy: d.accommodationRoomCapacity,
-                            extra_bed_capacity: d.accommodationExtraBedCapacity,
-                            max_adults: d.accommodationMaxAdults,
-                            max_children: d.accommodationMaxChildren,
-                          }, d.roomsCount);
                           // An explicit manualExtraBeds override (set in the Hotel
                           // Info drawer) wins over the auto-computed count — same
                           // rule the pricing engine itself uses (see
                           // computeBuilderHotelPricing), so this line never shows
                           // a different mattress count than what's actually
                           // charged or than what the exec typed in.
-                          const mattresses = d.manualExtraBeds ?? plan.mattresses;
+                          const mattresses = d.manualExtraBeds ?? autoMattresses;
                           return (
                             <span className={cn(mutedLine, "mt-0.5")}>
-                              {plan.rooms} room{plan.rooms !== 1 ? "s" : ""}
+                              {totalRooms} room{totalRooms !== 1 ? "s" : ""}
                               {mattresses > 0 && ` · ${mattresses} mattress${mattresses !== 1 ? "es" : ""}`}
                             </span>
                           );

@@ -16,7 +16,7 @@ import {
 } from "../app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import {
   staySpecOf, staySpecForRoom, applyStaySpec, staySpecsDiffer, inconsistentStayNights,
-  addExtraRoom, applyHotelRoomSelection,
+  addExtraRoom, applyHotelRoomSelection, mapStayRun, stayRun, removeExtraRoom,
 } from "../app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/day-mutations";
 import {
   stayMattressIssues, effectiveMattressCount, effectiveMattressRate, hotelGapLabel,
@@ -250,6 +250,56 @@ check("a party that fits across a combo raises nothing",
 check("a party that does not fit even across the combo is still flagged",
   stayMattressIssues(comboNight, { adults: 20, children: 0 })
     .some((i) => i.code === "party-does-not-fit"));
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log("A combo belongs to the stay, not to the night it was added on:");
+
+/** Three nights of one booking: same room, so stayRun sees one run. */
+const runNights = [night(1, { roomsCount: 3 }), night(2, { roomsCount: 3 }), night(3, { roomsCount: 3 })];
+check("three nights on one room read as one stay",
+  stayRun(runNights, 1).join(",") === "1,2,3");
+
+// The production bug: the exec adds a second room type on the night they have
+// open, and nights 2 and 3 keep the primary room alone. They then re-add it by
+// hand on each night, and any difference between those hand-repeats reaches
+// costing as the same room at two prices.
+const addedOnNightOne = mapStayRun(runNights, 1, (d) => addExtraRoom(d, standard, 3));
+check("adding a room type reaches every night of the stay",
+  addedOnNightOne.every((d) => (d.extraRooms ?? []).length === 1));
+check("...and every night ends up set up the same way",
+  inconsistentStayNights(addedOnNightOne, 1).length === 0);
+check("removing it reaches every night too",
+  mapStayRun(addedOnNightOne, 2, (d) => removeExtraRoom(d, 0))
+    .every((d) => (d.extraRooms ?? []).length === 0));
+
+// A night the run does not cover must not be touched. stayRun breaks on a
+// change of room, so days 5-6 here are a separate booking at the same property
+// later in the trip — the case "Also use this hotel on..." exists for.
+const gapped = [
+  ...runNights,
+  night(4, { roomPricingId: 99, roomsCount: 3 }),
+  night(5, { roomsCount: 3 }),
+];
+check("the run stops where the room changes",
+  stayRun(gapped, 1).join(",") === "1,2,3");
+check("a night outside the run is left alone",
+  (mapStayRun(gapped, 1, (d) => addExtraRoom(d, standard, 3))
+    .find((d) => d.day === 5)!.extraRooms ?? []).length === 0);
+
+// Which night the exec has open decides what "make every night match" means.
+// Anchored on the first night instead, opening night 2 and pressing it deleted
+// the combo that had just been added there.
+const driftedOnNightTwo = [night(1, { roomsCount: 3 }), addExtraRoom(night(2, { roomsCount: 3 }), standard, 3)];
+check("the drift is reported against the night the exec has open",
+  inconsistentStayNights(driftedOnNightTwo, 2).join(",") === "1");
+check("...so aligning from there keeps the room rather than dropping it",
+  mapStayRun(driftedOnNightTwo, 2, (d) => applyStaySpec(d, staySpecOf(driftedOnNightTwo[1])))
+    .every((d) => (d.extraRooms ?? []).length === 1));
+
+check("an added room records which rate plan it was picked on",
+  (addExtraRoom(night(1), catalogRoom({
+    id: 12, hotelId: 7, hotelName: "Hotel Pinegrove", roomName: "Deluxe", mealPlanName: "MAP",
+  }), 3).extraRooms ?? [])[0].planName === "MAP");
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("Costing's per-day correction survives a save:");

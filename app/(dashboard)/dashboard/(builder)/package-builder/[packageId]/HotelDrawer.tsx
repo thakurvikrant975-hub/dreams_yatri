@@ -784,7 +784,7 @@ function StayIssues({ issues }: { issues: StayIssue[] }) {
  * a confirmation, not level with the two modes.
  */
 export function HotelEditView({ day }: { day: number }) {
-  const { form, setForm, replaceDay, updateDay, openDrawer, closeDrawer } = useBuilder();
+  const { form, setForm, replaceDay, replaceStay, updateDay, openDrawer, closeDrawer } = useBuilder();
   // Declared before the early return below — hooks can't sit behind a guard.
   const [requesting, setRequesting] = useState(false);
   const itin = form.itineraries.find((it) => it.day === day);
@@ -808,19 +808,30 @@ export function HotelEditView({ day }: { day: number }) {
   // rejecting: same hotel, same party, different mattress count between
   // consecutive nights, with nothing in the builder saying so.
   const driftingNights = inconsistentStayNights(form.itineraries, day);
+  // The nights this day's stay covers. Every field describing the BOOKING —
+  // room count, mattresses, mattress rate, the combo below — writes to all of
+  // them (replaceStay), so the fields say so rather than leaving the exec to
+  // infer it from a toast they may have missed.
+  const stayNights = stayRun(form.itineraries, day);
+  const wholeStayHint = stayNights.length > 1
+    ? ` · applies to nights ${stayNights.join(", ")}`
+    : "";
 
-  /** Copies the first night's setup onto every other night of this stay.
+  /** Copies THIS night's setup onto every other night of this stay.
    *
-   * The first night, not this one, and deliberately: a run is identified by
-   * where it starts everywhere else in the builder (stayRun, continuesStayFrom,
-   * the "already assigned from day N" card), so aligning to anything else would
-   * make the fix depend on which night the exec happened to have open. */
+   * This night, not the one the run starts on. Anchoring on the first night
+   * made the button's effect depend on where the exec was standing in a way
+   * they could not see: open night 2, add the second room type there, and
+   * "make every night match night 1" deleted it — night 1 was the one without
+   * it. The banner names its nights against this one too (see
+   * inconsistentStayNights), so what it describes and what this does are the
+   * same statement. */
   function alignStayNights() {
-    const run = stayRun(form.itineraries, day);
-    const source = form.itineraries.find((it) => it.day === run[0]);
+    const source = form.itineraries.find((it) => it.day === day);
     if (!source) return;
     const spec = staySpecOf(source);
-    const target = new Set(run.slice(1));
+    const run = stayRun(form.itineraries, day);
+    const target = new Set(run.filter((d) => d !== day));
     setForm((f) => ({
       ...f,
       itineraries: f.itineraries.map((it) =>
@@ -972,10 +983,10 @@ export function HotelEditView({ day }: { day: number }) {
               <p className="flex items-start gap-1.5 text-[11px] font-medium text-dashboard-error">
                 <AlertTriangle size={11} className="shrink-0 mt-0.5" />
                 {driftingNights.length === 1 ? "Night" : "Nights"} {driftingNights.join(", ")} of this
-                stay {driftingNights.length === 1 ? "is" : "are"} set up differently from night {stayRun(form.itineraries, day)[0]}.
+                stay {driftingNights.length === 1 ? "is" : "are"} set up differently from night {day}.
               </p>
               <p className="text-[10.5px] text-dashboard-base-content/75">
-                One booking can&apos;t change its room or mattress count halfway through — costing
+                One booking can&apos;t change its rooms or mattress count halfway through — costing
                 rejects the package when it does.
               </p>
               <Button
@@ -983,7 +994,7 @@ export function HotelEditView({ day }: { day: number }) {
                 className="h-7 w-full text-[11px]"
                 onClick={alignStayNights}
               >
-                Make every night match night {stayRun(form.itineraries, day)[0]}
+                Make every night match night {day}
               </Button>
             </div>
           )}
@@ -1001,31 +1012,38 @@ export function HotelEditView({ day }: { day: number }) {
             <div className="grid grid-cols-2 gap-3">
               <Field
                 label="Rooms needed"
-                hint={`Auto: ${plan.rooms} for ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}`}
+                hint={`Auto: ${plan.rooms} for ${form.adults} adult${form.adults !== 1 ? "s" : ""}${form.children > 0 ? `, ${form.children} child${form.children !== 1 ? "ren" : ""}` : ""}${wholeStayHint}`}
               >
+                {/* Across the whole stay, like every other number that
+                    describes the booking rather than the night — see
+                    replaceStay. Correcting this on the night the combo was
+                    added while its other nights kept auto-sizing is what put
+                    the same room on the costing sheet at two prices. */}
                 <Input
                   type="number" min={1}
                   value={itin.roomsCount ?? ""}
                   placeholder={String(plan.rooms)}
-                  onChange={(e) => updateDay(day, {
+                  onChange={(e) => replaceStay(day, (d) => ({
+                    ...d,
                     roomsCount: e.target.value ? Math.max(1, parseInt(e.target.value, 10)) : null,
-                  })}
+                  }))}
                   className="h-9 text-sm"
                 />
               </Field>
 
               <Field
                 label="Mattresses needed"
-                hint={noMattressCapacity ? undefined : `Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room`}
+                hint={noMattressCapacity ? undefined : `Auto: ${plan.mattresses} · up to ${itin.accommodationExtraBedCapacity ?? 0} per room${wholeStayHint}`}
               >
                 <Input
                   type="number" min={0}
                   value={itin.manualExtraBeds ?? ""}
                   placeholder={String(plan.mattresses)}
                   disabled={noMattressCapacity}
-                  onChange={(e) => updateDay(day, {
+                  onChange={(e) => replaceStay(day, (d) => ({
+                    ...d,
                     manualExtraBeds: e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null,
-                  })}
+                  }))}
                   className="h-9 text-sm"
                 />
                 {noMattressCapacity && (
@@ -1048,18 +1066,19 @@ export function HotelEditView({ day }: { day: number }) {
               <Field
                 label="Rate / mattress"
                 hint={
-                  itin.accommodationExtraBedRate != null && itin.accommodationExtraBedRate > 0
+                  (itin.accommodationExtraBedRate != null && itin.accommodationExtraBedRate > 0
                     ? `Room's own rate: ₹${itin.accommodationExtraBedRate.toLocaleString("en-IN")}`
-                    : "This room's rate sheet prices no extra bed"
+                    : "This room's rate sheet prices no extra bed") + wholeStayHint
                 }
               >
                 <Input
                   type="number" min={0}
                   value={itin.manualExtraBedRate ?? ""}
                   placeholder={String(itin.accommodationExtraBedRate ?? 0)}
-                  onChange={(e) => updateDay(day, {
+                  onChange={(e) => replaceStay(day, (d) => ({
+                    ...d,
                     manualExtraBedRate: e.target.value ? parseFloat(e.target.value) : null,
-                  })}
+                  }))}
                   className="h-9 text-sm"
                 />
               </Field>
@@ -1668,8 +1687,28 @@ function bedsOf(capacity: number | null | undefined): number {
   return capacity && capacity > 0 ? capacity : 0;
 }
 
+/** Says which nights an edit reached, when it reached more than one.
+ *
+ * Silent on a single-night stay, where "applied to night 3" is just noise. On
+ * a run it is the whole point: the exec is looking at one night's rooms, the
+ * change lands on all of them, and without being told they assume it didn't
+ * and go add it again on night 2 — which is the habit this whole fix exists
+ * to end. */
+function announceStayEdit(nights: number[], what: string) {
+  if (nights.length > 1) {
+    toast.success(what, { description: `Applied to nights ${nights.join(", ")} — one booking.` });
+  }
+}
+
 function ExtraRoomsEditor({ day }: { day: number }) {
-  const { form, replaceDay } = useBuilder();
+  // replaceStay, not replaceDay: which room types this stay holds is a
+  // property of the booking, not of the night that happens to be open. Adding
+  // a second room type here used to write it to this night alone, so a combo
+  // added on night 1 of a 3-night stay left nights 2 and 3 with the primary
+  // room only — the exec then re-added it by hand on each night, and any
+  // difference between those hand-repeats came out of costing as the same
+  // room at two prices. See replaceStay in builder-context.
+  const { form, replaceStay } = useBuilder();
   const itin = form.itineraries.find((it) => it.day === day);
   const [adding, setAdding] = useState(false);
   const [rooms, setRooms] = useState<HotelRoomResult[]>([]);
@@ -1780,6 +1819,12 @@ function ExtraRoomsEditor({ day }: { day: number }) {
                   away from the hotel that owns them. */}
               <p className="text-xs font-medium truncate" title={r.label}>
                 {splitManualHotelName(r.label).manualRoomName ?? r.label}
+                {/* The rate plan, where the room was picked on one. Two rows
+                    reading "Deluxe Room" at two prices is the catalog showing
+                    the same room on CP and on MAP — see RoomSelection.planName. */}
+                {r.planName && (
+                  <span className="ml-1 font-normal text-dashboard-base-content/70">({r.planName})</span>
+                )}
               </p>
               {r.roomSpecs && (
                 <p className="text-[10.5px] text-dashboard-base-content/70 truncate">{r.roomSpecs}</p>
@@ -1788,7 +1833,7 @@ function ExtraRoomsEditor({ day }: { day: number }) {
             <Input
               type="number" min={1}
               value={r.quantity}
-              onChange={(e) => replaceDay(day, (d) =>
+              onChange={(e) => replaceStay(day, (d) =>
                 updateExtraRoom(d, i, { quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
               className="h-8 w-16 shrink-0 text-sm"
               aria-label={`How many ${r.label}`}
@@ -1796,7 +1841,10 @@ function ExtraRoomsEditor({ day }: { day: number }) {
             <Button
               type="button" size="sm" variant="ghost"
               className="h-8 w-8 shrink-0 p-0 text-dashboard-error hover:text-dashboard-error"
-              onClick={() => replaceDay(day, (d) => removeExtraRoom(d, i))}
+              onClick={() => announceStayEdit(
+                replaceStay(day, (d) => removeExtraRoom(d, i)),
+                `Removed ${splitManualHotelName(r.label).manualRoomName ?? r.label}`,
+              )}
               aria-label="Remove this room type"
             >
               <Trash2 size={13} />
@@ -1865,7 +1913,16 @@ function ExtraRoomsEditor({ day }: { day: number }) {
                   // now — see addExtraRoom. Without it the primary keeps
                   // sizing itself for the whole party while the rooms the
                   // party just moved into are charged on top.
-                  replaceDay(day, (d) => addExtraRoom(d, room, plan.rooms));
+                  //
+                  // The pin is why this in particular must reach every night
+                  // of the run and not just this one: pinning night 1 alone
+                  // left nights 2 and 3 auto-sizing for the whole party, so
+                  // the same room came out of costing at one price on night 1
+                  // and another on night 2.
+                  announceStayEdit(
+                    replaceStay(day, (d) => addExtraRoom(d, room, plan.rooms)),
+                    `Added ${room.roomName}`,
+                  );
                   setAdding(false);
                 }}
               />

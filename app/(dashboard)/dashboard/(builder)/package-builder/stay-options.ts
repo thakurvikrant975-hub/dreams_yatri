@@ -109,6 +109,8 @@ export type StayCell = {
     roomSpecs?: string | null;
     thumbnail?: string | null;
     hotelId?: number | null;
+    /** Staff-only, like roomPricingId above — see RoomSelection.planName. */
+    planName?: string | null;
   }[];
 };
 

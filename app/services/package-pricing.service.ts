@@ -4,7 +4,7 @@ import { db } from "../lib/db";
 import type { Prisma } from "@/app/generated/prisma/client";
 import { resolveCabPrice } from "./cab-pricing-utils";
 import {
-  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, roomFits, planRoomOccupancy,
+  roomTotalCapacity, roomExtraBedsUsed, roomsNeededFor, roomFits, planRoomOccupancy, baseBedsOf,
 } from "../lib/room-capacity";
 import { splitManualHotelName } from "./hotel-name-utils";
 import { resolveHotelSeasonPricing } from "../lib/hotel-season-pricing";
@@ -1185,6 +1185,36 @@ function hasStayIntent(d: {
     || (d.manualExtraBeds ?? 0) > 0;
 }
 
+/**
+ * What ONE room of a rate row costs for a night, given how many guests are in
+ * it: the highest occupancy tier that fits, falling back to the flat rate for
+ * a rate sheet that lists no tiers.
+ *
+ * Hoisted out of the primary-room branch so the combo's other room types go
+ * through it too. They did not: extra rooms were priced at `basePrice`
+ * outright, with `occPrices` resolved and then dropped on the floor, so one
+ * rate row cost one thing as the night's primary room and a different thing as
+ * a second room type at the same hotel on the same date. On a rate sheet with
+ * tiers that is a straight mispricing of the combo, and it reached costing as
+ * two lines naming the same hotel at two different per-room figures with
+ * nothing on screen to explain the gap.
+ *
+ * Tiers are "this rate applies from this occupancy upward", so the match is
+ * the largest tier at or below the headcount, and a headcount below every tier
+ * falls to the smallest one rather than to the flat rate — the rate sheet
+ * having tiers at all means the flat rate is not what this room sells for.
+ */
+function roomRateAtOccupancy(
+  basePrice: number,
+  occPrices: { occupancy: number; price_per_night: unknown }[],
+  headcount: number,
+): number {
+  if (occPrices.length === 0) return basePrice;
+  const sorted = [...occPrices].sort((a, b) => b.occupancy - a.occupancy);
+  const match = sorted.find((op) => op.occupancy <= headcount) ?? sorted[sorted.length - 1];
+  return Number(match.price_per_night);
+}
+
 export async function computeBuilderHotelPricing(input: {
   travelDate: string | null;
   /** The party AS ENTERED, not as classified.
@@ -1382,17 +1412,11 @@ export async function computeBuilderHotelPricing(input: {
       const { basePrice, occPrices, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
       // Each room is priced at ITS OWN occupancy tier, matching the stay
       // pricing path above — a single trip-wide tier (min(adults, beds))
-      // mispriced any uneven split.
-      const sortedOccPrices = occPrices.length > 0
-        ? [...occPrices].sort((a, b) => b.occupancy - a.occupancy)
-        : null;
-      const priceForHeadcount = (headcount: number): number => {
-        if (!sortedOccPrices) return basePrice;
-        const match = sortedOccPrices.find((op) => op.occupancy <= headcount)
-          ?? sortedOccPrices[sortedOccPrices.length - 1];
-        return Number(match.price_per_night);
-      };
-      const roomsCost = perRoomHeadcount.reduce((sum, h) => sum + priceForHeadcount(h), 0);
+      // mispriced any uneven split. Through roomRateAtOccupancy, which the
+      // combo's other room types below now share.
+      const roomsCost = perRoomHeadcount.reduce(
+        (sum, h) => sum + roomRateAtOccupancy(basePrice, occPrices, h), 0,
+      );
       // Headline per-room figure only; roomsCost above is the real total.
       const pricePerRoom = roomsCost / roomsNeeded;
 
@@ -1520,8 +1544,20 @@ export async function computeBuilderHotelPricing(input: {
         continue;
       }
 
-      const { basePrice, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
-      const total = quantity * basePrice;
+      const { basePrice, occPrices, isSeasonal } = resolveHotelSeasonPricing(rp, dayDate);
+      // The same occupancy resolution the primary room gets, at the guests one
+      // of these rooms holds. The party split lives on the primary (this room
+      // carries no headcount of its own), so a combo room is taken at its own
+      // capacity — which is exactly what the builder's own "these N rooms
+      // sleep X" check assumes when it tells the exec the party fits.
+      //
+      // Before this the tiers were resolved and discarded, and the room was
+      // charged at the flat rate: on any rate sheet that prices by occupancy,
+      // 2 Standard rooms cost one figure as a combo, and a different figure if
+      // the exec had made Standard the night's primary room instead. Same
+      // hotel, same night, same two rooms.
+      const pricePerRoom = roomRateAtOccupancy(basePrice, occPrices, baseBedsOf(rp.room));
+      const total = quantity * pricePerRoom;
       hotelSubtotal += total;
 
       lines.push({
@@ -1529,7 +1565,7 @@ export async function computeBuilderHotelPricing(input: {
         hotelName: rp.hotel.name,
         roomName: rp.room?.name ?? "Room",
         planName: rp.plan_name,
-        pricePerRoom: basePrice,
+        pricePerRoom,
         roomsNeeded: quantity,
         mattresses: 0,
         extraBedRate: 0,
@@ -1538,7 +1574,7 @@ export async function computeBuilderHotelPricing(input: {
         // A rate row that exists but prices the room at nothing. Rarer than a
         // missing row and just as invisible in a total, since the day still
         // shows its primary room's real price beside it.
-        ...(basePrice <= 0 ? { gap: "no-room-price" as const } : {}),
+        ...(pricePerRoom <= 0 ? { gap: "no-room-price" as const } : {}),
       });
     }
   }

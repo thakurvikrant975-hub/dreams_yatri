@@ -33,7 +33,15 @@ export type RoomCapacityFields = {
 const FALLBACK_BASE_BEDS = 2;
 const FALLBACK_EXTRA_BEDS = 1;
 
-function baseBedsOf(r: RoomCapacityFields | null | undefined): number {
+/** A room's real beds — what the catalog calls max_occupancy.
+ *
+ * Exported for the pricing engine's combo path: an extra room type booked
+ * alongside the primary carries no party split of its own, so the guests in
+ * one of them is the guests one of them sleeps. That has to come from here
+ * rather than from a `?? 2` at the call site, or the occupancy tier a combo
+ * room is priced at stops matching the tier the same room is priced at when
+ * it happens to be the night's primary. */
+export function baseBedsOf(r: RoomCapacityFields | null | undefined): number {
   return r?.max_occupancy ?? FALLBACK_BASE_BEDS;
 }
 

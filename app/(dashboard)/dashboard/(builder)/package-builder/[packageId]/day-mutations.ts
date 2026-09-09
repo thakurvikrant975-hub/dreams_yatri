@@ -615,6 +615,10 @@ export function addExtraRoom(
         thumbnail: raw.thumbnail ?? null,
         roomCapacity: raw.roomCapacity ?? null,
         roomSpecs: raw.roomSpecs ?? null,
+        // Which rate plan of this room — a hotel selling one room type on CP
+        // and on MAP is two rate rows under one name, and without this the
+        // added room is indistinguishable from the other. See RoomSelection.
+        planName: raw.mealPlanName ?? null,
       },
     ],
   };
@@ -800,7 +804,16 @@ function extraRoomsKey(extras: RoomSelection[]): string {
 }
 
 /**
- * The nights of a stay whose setup disagrees with the night the stay starts on.
+ * The nights of a stay whose setup disagrees with the night `day` — the one
+ * the exec has open.
+ *
+ * Against the OPEN night, not the night the run starts on, and the difference
+ * matters at both ends. The banner names nights that disagree with what the
+ * exec is looking at, and the align action copies what they are looking at
+ * onto the rest. Anchored on the first night instead, "make every night match
+ * night 1" silently deleted a combo the exec had just added on night 2 — night
+ * 1 didn't have it, so aligning to night 1 meant throwing it away, which is
+ * the opposite of what the button appears to offer.
  *
  * Derived, never stored: a run is already derived (see stayRun), and a stored
  * "this run is consistent" flag would be one more thing to keep true. Returns
@@ -808,15 +821,22 @@ function extraRoomsKey(extras: RoomSelection[]): string {
  *
  * Only runs of a CATALOG room are checked. A hand-typed night is its own run of
  * one and has nothing to disagree with.
+ *
+ * Now that every edit to a stay's setup writes across the whole run (see
+ * replaceStay in builder-context), a run can only drift from rows written
+ * before that — packages already in flight — or from a stale tab's merge. It
+ * stays because those rows are real and still need correcting, not because
+ * the builder can still produce them.
  */
 export function inconsistentStayNights(days: DayItinerary[], day: number): number[] {
   const run = stayRun(days, day);
   if (run.length < 2) return [];
   const byDay = new Map(days.map((d) => [d.day, d]));
-  const first = byDay.get(run[0]);
-  if (!first || first.roomPricingId == null) return [];
-  const spec = staySpecOf(first);
-  return run.slice(1).filter((d) => {
+  const open = byDay.get(day);
+  if (!open || open.roomPricingId == null) return [];
+  const spec = staySpecOf(open);
+  return run.filter((d) => {
+    if (d === day) return false;
     const other = byDay.get(d);
     return other != null && staySpecsDiffer(spec, staySpecOf(other));
   });
@@ -835,6 +855,30 @@ export function stayRun(days: DayItinerary[], day: number): number[] {
   let end = idx;
   while (end < days.length - 1 && days[end + 1].roomPricingId === id) end++;
   return days.slice(start, end + 1).map((d) => d.day);
+}
+
+/**
+ * `fn` applied to every night of the stay `day` belongs to, and to no other.
+ *
+ * The pure half of replaceStay (builder-context, which wraps `fn` in the
+ * override invalidation before handing it here). A stay is one booking, so
+ * the things that describe the booking rather than the night — how many rooms
+ * of which types, how many mattresses, at what rate — are edited through this
+ * rather than a day at a time. Editing them a day at a time is what let a
+ * combo added on night 1 stop at night 1, and what put the same room on
+ * costing's sheet at two prices on consecutive nights.
+ *
+ * A day with no catalog room, or a re-visit to the same property later in the
+ * trip, is a run of one (see stayRun) and this behaves exactly like editing
+ * that day alone.
+ */
+export function mapStayRun(
+  days: DayItinerary[],
+  day: number,
+  fn: (d: DayItinerary) => DayItinerary,
+): DayItinerary[] {
+  const run = new Set(stayRun(days, day));
+  return days.map((it) => (run.has(it.day) ? fn(it) : it));
 }
 
 /** True when this day continues a stay that began earlier — the case that

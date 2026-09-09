@@ -460,6 +460,11 @@ export async function getStayOptionsForDocument(packageId: string) {
         quantity: r.quantity,
         roomSpecs: r.roomSpecs ?? null,
         thumbnail: r.thumbnail ?? null,
+        // Editor-only, same rule as the caps above: it exists to tell two
+        // rate rows of one room type apart while an exec is picking between
+        // them (see RoomSelection.planName), and the client's copy states the
+        // stay's meal plan once for the whole night already.
+        planName: isStaff ? r.planName ?? null : null,
       })),
     }])),
   }));

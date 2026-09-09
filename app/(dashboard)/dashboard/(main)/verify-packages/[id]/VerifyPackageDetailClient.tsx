@@ -42,7 +42,14 @@ const TICKET_TYPE_ICONS: Record<string, typeof PlaneTakeoff> = {
 export type PricingSnapshot = {
     lockedAt: string;
     currency: string;
-    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: string }[]; overridden?: boolean };
+    // planName is the room's RATE PLAN (CP/MAP/AP…). It was already on every
+    // line the engine produces and was simply never read here — which is what
+    // made a combo night unreadable: a hotel selling one room type on two meal
+    // plans is two rate rows with one room name, so the breakdown showed
+    // "Hotel X — Deluxe Room" twice, at two different per-room prices, with
+    // nothing on the screen to say what differed. Optional because a frozen
+    // snapshot written before this may not carry it.
+    hotel: { subtotal: number; nightsCounted: number; lines: { day: number; hotelName: string; roomName: string; planName?: string | null; pricePerRoom: number; roomsNeeded: number; mattresses: number; extraBedRate: number; total: number; overridden?: boolean; gap?: string }[]; overridden?: boolean };
     cab: { subtotal: number; daysCounted: number; lines: { day: number; vehicleName: string; pricingType: string; rate: number; distanceKm: number | null; total: number; overridden?: boolean; gap?: "no-cab-rate" }[]; overridden?: boolean };
     tickets: { subtotal: number; lines: { type: string; provider: string; fromPlace: string; toPlace: string; fare: number | null; ticketCount: number }[] };
     addOns?: { subtotal: number; lines: { name: string; price: number; quantity: number; day: number | null }[] };
@@ -598,7 +605,11 @@ export function VerifyPackageDetailClient({
                             >
                                 {groupByDay(s.hotel.lines).map(({ day, lines, total }) => {
                                     const hotelId = hotelIdByDay[day];
-                                    const overridden = lines.some((l) => l.overridden);
+                                    // "(corrected)" is per LINE, not per day. A day-wide
+                                    // flag stamped it onto every room of a combo night
+                                    // when only one line was corrected — and a day
+                                    // carrying an override emits one line anyway, so the
+                                    // flag had nothing to spread across but noise.
                                     return (
                                         <div key={day} className="flex items-center justify-between px-4 py-2.5 text-sm gap-3">
                                             <div className="min-w-0">
@@ -617,7 +628,10 @@ export function VerifyPackageDetailClient({
                                                                 </a>
                                                             ) : l.hotelName}
                                                             {" "}— {l.roomName}
-                                                            {overridden && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(corrected)</span>}
+                                                            {l.planName && (
+                                                                <span className="ml-1 text-xs text-dashboard-neutral">({l.planName})</span>
+                                                            )}
+                                                            {l.overridden && <span className="ml-1.5 text-[10px] font-medium text-amber-600">(corrected)</span>}
                                                         </p>
                                                         {!l.overridden && (
                                                             <p className="text-xs text-dashboard-neutral mt-0.5">
