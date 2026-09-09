@@ -13,6 +13,7 @@ import type { CurrentMember } from "@/app/types/members";
 import { GreetingBanner } from "./Greetingbanner";
 import { FunNotification } from "./Funnotification";
 import { BookingWonToast } from "./BookingWonToast";
+import { BookingCelebrationDialog } from "./BookingCelebrationDialog";
 import { StatCard, StatGrid } from "./Statcard";
 import { db } from "@/app/lib/db";
 import { cn } from "@/app/lib/utils";
@@ -76,6 +77,9 @@ async function DefaultDashboardContent({ member }: { member: CurrentMember }) {
       {/* Renders nothing — holds the live subscription that congratulates this
           exec the moment a trip they sold is paid for. */}
       <BookingWonToast memberId={member.id} />
+      {/* The bigger, one-time "Booking Confirmed!" popup + party ask — see
+          its own file for why it's separate from the toast above. */}
+      <BookingCelebrationDialog memberId={member.id} />
 
       {/* KPI overview */}
       <StatGrid cols={4}>

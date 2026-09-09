@@ -9,6 +9,8 @@ import { PaymentPill, StatusPill } from "../pills";
 import BookingAdminActions from "./BookingAdminActions";
 import FulfillmentPanel from "./FulfillmentPanel";
 import { getBookingFulfillment } from "@/app/services/fulfillment/status.service";
+import { isOperationsManagerRole } from "@/app/lib/sales-teams/leader-scope";
+import PaymentProofSection from "./PaymentProofSection";
 
 export const metadata: Metadata = {
     title: "Booking detail - Dashboard",
@@ -358,7 +360,7 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
             },
             travellersList: { orderBy: { isLead: "desc" }, select: { id: true, fullName: true, type: true, gender: true, dateOfBirth: true, isLead: true } },
             installments: { orderBy: { sequence: "asc" }, select: { id: true, type: true, sequence: true, amount_paise: true, dueDate: true, status: true, paidAt: true } },
-            payments: { orderBy: { createdAt: "desc" }, select: { id: true, gateway: true, method: true, amount_paise: true, status: true, purpose: true, gatewayPaymentId: true, gatewayOrderId: true, failureReason: true, createdAt: true, paidAt: true } },
+            payments: { orderBy: { createdAt: "desc" }, select: { id: true, gateway: true, method: true, amount_paise: true, status: true, purpose: true, gatewayPaymentId: true, gatewayOrderId: true, failureReason: true, createdAt: true, paidAt: true, proofUrl: true, verificationStatus: true, rejectionReason: true, submittedByName: true } },
             timeline: { orderBy: { createdAt: "desc" }, select: { id: true, action: true, note: true, fromStatus: true, toStatus: true, performedByName: true, createdAt: true } },
         },
     });
@@ -378,6 +380,13 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
     const viewerSells = viewerRole.includes("sales") || viewerRole.includes("travel expert");
     const viewerOversees = viewerRole.includes("team leader");
     if (viewerSells && !viewerOversees && booking.salesAgentId !== viewer?.member?.id) notFound();
+
+    // Who may submit a payment screenshot vs. who may approve/reject one —
+    // same "own it, or oversee the whole desk" split as the notFound check
+    // above, plus Operations specifically for review actions.
+    const canSubmitPaymentProof = booking.salesAgentId === viewer?.member?.id || (viewerSells && viewerOversees) || !viewerSells;
+    const isOperationsManager = await isOperationsManagerRole();
+    const offlinePayments = booking.payments.filter((p) => p.gateway === "OFFLINE");
 
     const isFull = booking.paymentPlan === "FULL";
     const snapshot = (booking.priceSnapshot ?? {}) as Snapshot;
@@ -611,6 +620,15 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                 </table>
                             </div>
                         )}
+                    </Section>
+
+                    <Section title="Payment Proofs">
+                        <PaymentProofSection
+                            bookingId={booking.id}
+                            payments={offlinePayments}
+                            canSubmit={canSubmitPaymentProof}
+                            isOps={isOperationsManager}
+                        />
                     </Section>
 
                     <CollapsibleSection title="Timeline" count={booking.timeline.length}>

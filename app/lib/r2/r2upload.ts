@@ -15,7 +15,8 @@ export type ImageFolder =
   | "blogs"
   | "avatars"
   | "chat-attachments"
-  | "landing-pages";
+  | "landing-pages"
+  | "payment-proofs";
 
 export type UploadResult = {
   key: string;

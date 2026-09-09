@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDistanceToNow, differenceInCalendarDays } from "date-fns";
-import { Building2, Package, Users } from "lucide-react";
+import { Building2, Package, Users, Receipt } from "lucide-react";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "../components/ui/select";
@@ -78,6 +78,10 @@ type Booking = {
     salesAgentName?: string | null;
     packageUrl: string | null;
     hotelBookings: { hotel: { name: string; city: string | null } }[];
+    /** A manually-submitted GPay/UPI proof awaiting ops review — see
+     *  payment-proof.actions.ts. Optional: this row type is shared with the
+     *  hotel-bookings screen, which has no reason to compute it. */
+    hasPendingProof?: boolean;
 };
 
 export function PackageBookingsTable({
@@ -296,7 +300,19 @@ export function PackageBookingsTable({
         {
             header: "Status",
             sortKey: (b) => b.status?.toLowerCase() ?? "",
-            cell: (b) => <StatusPill status={b.status} />,
+            cell: (b) => (
+                <div className="flex flex-col items-start gap-1">
+                    <StatusPill status={b.status} />
+                    {b.hasPendingProof && (
+                        <span
+                            title="A payment screenshot is awaiting review"
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 whitespace-nowrap"
+                        >
+                            <Receipt className="size-2.5" /> Proof pending
+                        </span>
+                    )}
+                </div>
+            ),
         },
         {
             header: "Actions",

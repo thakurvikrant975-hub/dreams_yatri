@@ -63,6 +63,14 @@ export async function isSalesManagerRole(): Promise<boolean> {
   return (effective?.member.teamRole?.name ?? "").trim().toLowerCase().includes("sales manager");
 }
 
+/** Same substring-match convention as isSalesManagerRole — gates who may
+ * approve/reject a sales exec's manually-submitted payment proof on a
+ * Package Booking. */
+export async function isOperationsManagerRole(): Promise<boolean> {
+  const effective = await getEffectiveMember();
+  return (effective?.member.teamRole?.name ?? "").trim().toLowerCase().includes("operations manager");
+}
+
 export async function getPackageReviewScope(): Promise<PackageReviewScope> {
   const effective = await getEffectiveMember();
   if (!effective) return { kind: "none" };
