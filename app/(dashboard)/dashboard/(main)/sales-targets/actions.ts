@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { createLog } from "../lib/logger";
-import { istYearMonth } from "@/app/lib/ist-window";
+import { istYearMonth, istMonthBounds } from "@/app/lib/ist-window";
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 // Mirrors sales-teams/actions.ts — the current actor is the logged-in
@@ -25,12 +25,18 @@ export type Result<T> =
 
 export type TargetValues = { revenueTarget: number | null; conversionTarget: number | null };
 
+/** What actually landed this month — bookings CONFIRMED and their revenue,
+ * scoped to the same (year, month) the target is set for, so the two numbers
+ * sit side by side rather than the target page showing goals in a vacuum. */
+export type AchievedValues = { bookings: number; revenue: number };
+
 export type MemberTargetRow = {
   id: string;
   name: string;
   employeeId: string;
   roleName: string | null;
   target: TargetValues;
+  achieved: AchievedValues;
 };
 
 export type TeamTargetRow = {
@@ -38,6 +44,10 @@ export type TeamTargetRow = {
   name: string;
   leaderName: string | null;
   target: TargetValues;
+  /** Sum of this team's own members' achieved figures — the team's target is
+   * independent (see the member comment below), but what it actually booked
+   * is only ever the roster's own numbers added up. */
+  achieved: AchievedValues;
   /** This team's own roster, grouped here rather than in a separate flat
    * list — the leader is included (a SalesTeam leader is also a normal
    * member of their own team, see the model's doc comment). */
@@ -53,6 +63,10 @@ export type SalesTargetsPageData = {
    * group rather than folded into a team so a manager can still set their
    * individual target before they're placed on a team. */
   unassigned: MemberTargetRow[];
+  /** Company-wide targets are the sum of each team's own target plus every
+   * unassigned member's target — never a member sum inside a team, since a
+   * team's target is set independently of its roster's individual ones. */
+  companyTotals: { target: TargetValues; achieved: AchievedValues };
 };
 
 // ── Reads ─────────────────────────────────────────────────────────────────────
@@ -64,7 +78,14 @@ export type SalesTargetsPageData = {
  * Sales Executive, Team Leader, and anyone already on a SalesTeam — the same
  * population Sales Teams/analytics already treat as the sales org. */
 export async function getSalesTargetsPageData(year: number, month: number): Promise<SalesTargetsPageData> {
-  const [teams, unassignedMembers, memberTargets, teamTargets] = await Promise.all([
+  // Bookings are scoped to the calendar month being viewed, not necessarily
+  // the current one — a manager reviewing last month's targets should see
+  // last month's actual bookings, not this month's. Noon UTC keeps the probe
+  // instant safely inside the IST calendar month regardless of date-line edge
+  // cases at either boundary.
+  const { start: monthStart, end: monthEnd } = istMonthBounds(new Date(Date.UTC(year, month - 1, 15, 12)));
+
+  const [teams, unassignedMembers, memberTargets, teamTargets, bookingsGrouped] = await Promise.all([
     db.salesTeam.findMany({
       include: {
         leader: { select: { id: true, name: true } },
@@ -86,36 +107,69 @@ export async function getSalesTargetsPageData(year: number, month: number): Prom
     }),
     db.salesTarget.findMany({ where: { year, month, teamMemberId: { not: null } } }),
     db.salesTarget.findMany({ where: { year, month, salesTeamId: { not: null } } }),
+    db.booking.groupBy({
+      by: ["currentAssigneeId"],
+      where: {
+        status: "CONFIRMED",
+        createdAt: { gte: monthStart, lte: monthEnd },
+        currentAssigneeId: { not: null },
+      },
+      _count: { _all: true },
+      _sum: { totalAmount: true },
+    }),
   ]);
 
   const memberTargetById = new Map(memberTargets.map((t) => [t.teamMemberId as string, t]));
   const teamTargetById = new Map(teamTargets.map((t) => [t.salesTeamId as string, t]));
+  const achievedByMember = new Map(bookingsGrouped.map((g) => [g.currentAssigneeId as string, g]));
 
   const toMemberRow = (m: { id: string; name: string; employeeId: string; teamRole: { name: string } | null }): MemberTargetRow => {
     const target = memberTargetById.get(m.id);
+    const booking = achievedByMember.get(m.id);
     return {
       id: m.id,
       name: m.name,
       employeeId: m.employeeId,
       roleName: m.teamRole?.name ?? null,
       target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
+      achieved: { bookings: booking?._count._all ?? 0, revenue: Number(booking?._sum.totalAmount ?? 0) },
     };
   };
+
+  const sumTarget = (rows: { target: TargetValues }[], key: keyof TargetValues) =>
+    rows.reduce((s, r) => s + (r.target[key] ?? 0), 0);
+  const sumAchieved = (rows: { achieved: AchievedValues }[], key: keyof AchievedValues) =>
+    rows.reduce((s, r) => s + r.achieved[key], 0);
+
+  const teamRows: TeamTargetRow[] = teams.map((t) => {
+    const target = teamTargetById.get(t.id);
+    const members = t.members.map(toMemberRow);
+    return {
+      id: t.id,
+      name: t.name,
+      leaderName: t.leader?.name ?? null,
+      target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
+      achieved: { bookings: sumAchieved(members, "bookings"), revenue: sumAchieved(members, "revenue") },
+      members,
+    };
+  });
+  const unassignedRows = unassignedMembers.map(toMemberRow);
 
   return {
     year,
     month,
-    teams: teams.map((t) => {
-      const target = teamTargetById.get(t.id);
-      return {
-        id: t.id,
-        name: t.name,
-        leaderName: t.leader?.name ?? null,
-        target: { revenueTarget: target?.revenueTarget ?? null, conversionTarget: target?.conversionTarget ?? null },
-        members: t.members.map(toMemberRow),
-      };
-    }),
-    unassigned: unassignedMembers.map(toMemberRow),
+    teams: teamRows,
+    unassigned: unassignedRows,
+    companyTotals: {
+      target: {
+        revenueTarget: sumTarget(teamRows, "revenueTarget") + sumTarget(unassignedRows, "revenueTarget"),
+        conversionTarget: sumTarget(teamRows, "conversionTarget") + sumTarget(unassignedRows, "conversionTarget"),
+      },
+      achieved: {
+        revenue: sumAchieved(teamRows, "revenue") + sumAchieved(unassignedRows, "revenue"),
+        bookings: sumAchieved(teamRows, "bookings") + sumAchieved(unassignedRows, "bookings"),
+      },
+    },
   };
 }
 
