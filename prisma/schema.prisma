@@ -2780,6 +2780,35 @@ model package_queries {
   utmSource           String?
   utmMedium           String?
   utmCampaign         String?
+  /**
+   * Which ad produced this lead, captured at write time from the ValueTrack
+   * parameters Google appends via the account's final URL suffix (and the
+   * Meta equivalents later). Recorded here rather than resolved afterwards
+   * because the API can only map a click id back to its ad group for 90 days,
+   * and not at all for some campaign types — so a lead not tagged on arrival
+   * can never be attributed. See docs/ads-analytics/ads-analytics-plan.md.
+   *
+   * Ids are text, not numbers: they arrive from a URL, are never summed, and
+   * a malformed value must land as-is rather than fail the whole intake.
+   * `gclid` above is deliberately left untouched and still written — the lead
+   * report treats it as proof of Google — and `adsClickId` holds the same
+   * value alongside the `adsClickIdType` that says which of the three kinds
+   * of click id it actually was, which the offline conversion upload needs
+   * and a single overloaded column cannot express.
+   */
+  adsPlatform         String?           @db.VarChar(16)
+  adsCampaignId       String?           @db.VarChar(32)
+  adsAdGroupId        String?           @db.VarChar(32)
+  adsCreativeId       String?           @db.VarChar(32)
+  adsKeyword          String?           @db.VarChar(255)
+  adsMatchType        String?           @db.VarChar(16)
+  adsNetwork          String?           @db.VarChar(16)
+  adsDevice           String?           @db.VarChar(16)
+  adsTargetId         String?           @db.VarChar(64)
+  adsClickId          String?           @db.VarChar(255)
+  adsClickIdType      String?           @db.VarChar(16)
+  /// First touch, not submit time — the click that earned the visit.
+  adsClickAt          DateTime?
   pageUrl             String?
   status              QueryStatus       @default(SUBMITTED)
   verified            Boolean           @default(false)
@@ -2824,6 +2853,9 @@ model package_queries {
   @@index([verified])
   @@index([deletedAt])
   @@index([phone])
+  @@index([adsCampaignId, createdAt])
+  @@index([adsAdGroupId, createdAt])
+  @@index([adsClickId])
 }
 
 /**
