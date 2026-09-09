@@ -4,18 +4,22 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { db } from "@/app/lib/db";
-import { canUseViewAs } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { getViewAsScope, type ViewAsScope } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 const COOKIE = "dy_view_as";
 
-async function assertFSD(): Promise<boolean> {
+/** Resolves the caller's View As scope — null if they aren't allowed to use
+ * it at all, otherwise "all" (FSD / allowlist) or "team" (a Team Leader,
+ * restricted to the roster of the team they lead). */
+async function currentScope(): Promise<ViewAsScope | null> {
   const session = await dashboardAuth();
-  if (!session?.user?.email) return false;
+  if (!session?.user?.email) return null;
   const m = await db.teamMember.findUnique({
     where: { email: session.user.email },
-    select: { teamRole: { select: { name: true } } },
+    select: { id: true, teamRole: { select: { name: true } } },
   });
-  return canUseViewAs(session.user.email, m?.teamRole?.name);
+  if (!m) return null;
+  return getViewAsScope(session.user.email, m.id, m.teamRole?.name);
 }
 
 export type ViewableMember = {
@@ -29,9 +33,14 @@ export type ViewableMember = {
 };
 
 export async function getViewableMembers(): Promise<ViewableMember[]> {
-  if (!(await assertFSD())) return [];
+  const scope = await currentScope();
+  if (!scope) return [];
+  if (scope.kind === "team" && scope.memberIds.length === 0) return [];
   return db.teamMember.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(scope.kind === "team" ? { id: { in: scope.memberIds } } : {}),
+    },
     select: {
       id: true,
       name: true,
@@ -46,7 +55,12 @@ export async function getViewableMembers(): Promise<ViewableMember[]> {
 }
 
 export async function startViewingAs(memberId: string): Promise<{ success: boolean }> {
-  if (!(await assertFSD())) return { success: false };
+  const scope = await currentScope();
+  if (!scope) return { success: false };
+  // A Team Leader may only View As someone on the team they lead — re-checked
+  // here (not just in the picker's list) since this action can be called
+  // directly with any id.
+  if (scope.kind === "team" && !scope.memberIds.includes(memberId)) return { success: false };
   const exists = await db.teamMember.count({ where: { id: memberId } });
   if (!exists) return { success: false };
   (await cookies()).set(COOKIE, memberId, {

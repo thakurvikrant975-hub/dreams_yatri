@@ -38,11 +38,54 @@ type MemberResult = Prisma.TeamMemberGetPayload<{ select: typeof MEMBER_SELECT }
 // dashboard layout, which is a much broader privilege than View As alone.
 const VIEW_AS_EMAIL_ALLOWLIST = new Set(["karan@dreamsyatri.com"]);
 
-/** Who may use "View As" — every Full Stack Developer, plus anyone in
- * VIEW_AS_EMAIL_ALLOWLIST regardless of role. */
+/** Who may use "View As" — every Full Stack Developer, anyone in
+ * VIEW_AS_EMAIL_ALLOWLIST regardless of role, and every Team Leader (scoped
+ * to their own team's roster — see getViewAsScope). */
 export function canUseViewAs(email: string | null | undefined, roleName: string | null | undefined): boolean {
-  if ((roleName ?? "").toLowerCase() === "full stack developer") return true;
+  const role = (roleName ?? "").trim().toLowerCase();
+  if (role === "full stack developer") return true;
+  if (role.includes("team leader")) return true;
   return !!email && VIEW_AS_EMAIL_ALLOWLIST.has(email.toLowerCase());
+}
+
+export type ViewAsScope =
+  | { kind: "all" }
+  | { kind: "team"; teamId: string | null; memberIds: string[] };
+
+/**
+ * What an approved View As user may actually pick from. Full Stack
+ * Developers and the explicit email allowlist get the whole company
+ * roster; a Team Leader is scoped to only the SalesTeam they lead (empty
+ * roster if they don't currently lead one, same "none" fallback
+ * getPackageReviewScope uses). Returns null if the caller can't use View
+ * As at all — callers should treat that the same as an empty roster.
+ */
+export async function getViewAsScope(
+  email: string,
+  memberId: string,
+  roleName: string | null | undefined,
+): Promise<ViewAsScope | null> {
+  if (!canUseViewAs(email, roleName)) return null;
+
+  const role = (roleName ?? "").trim().toLowerCase();
+  if (role === "full stack developer" || VIEW_AS_EMAIL_ALLOWLIST.has(email.toLowerCase())) {
+    return { kind: "all" };
+  }
+
+  if (role.includes("team leader")) {
+    const leader = await db.teamMember.findUnique({
+      where: { id: memberId },
+      select: { ledSalesTeam: { select: { id: true, members: { select: { id: true } } } } },
+    });
+    if (!leader?.ledSalesTeam) return { kind: "team", teamId: null, memberIds: [] };
+    return {
+      kind: "team",
+      teamId: leader.ledSalesTeam.id,
+      memberIds: leader.ledSalesTeam.members.map((m) => m.id),
+    };
+  }
+
+  return { kind: "team", teamId: null, memberIds: [] };
 }
 
 /** Always returns the real logged-in member. Used by the layout for nav/auth. */
