@@ -367,6 +367,19 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
 
     if (!booking) notFound();
 
+    // For a sales-created booking, packageId (the catalogue FK) is always
+    // null — the actual package lives behind packageUrl's
+    // /custom-package/{id} instead. Resolved here so ops can see exactly
+    // what was booked and at what price, rather than the blank "Package"
+    // field this used to render (booking.package was always null for these).
+    const bookedPackageId = booking.packageUrl?.match(/^\/custom-package\/([^/?#]+)/)?.[1] ?? null;
+    const bookedPackage = bookedPackageId
+        ? await db.custom_packages.findUnique({
+            where: { id: bookedPackageId },
+            select: { id: true, title: true, totalPrice: true, currency: true, status: true },
+        })
+        : null;
+
     // A selling role reaches only its own bookings. The list is already
     // scoped, but a booking id in a URL is guessable and shareable, and this
     // page carries the client's contact details, what they paid and the
@@ -443,18 +456,43 @@ export default async function BookingDetailPage({ params }: { params: Promise<{ 
                                 <>
                                     <Field
                                         label="Package"
-                                        value={booking.packageUrl && booking.package?.title ? (() => {
-                                            const params = new URLSearchParams();
-                                            params.set("adults", String(booking.travellers));
-                                            params.set("date", booking.startDate.toISOString().slice(0, 10));
-                                            return (
-                                                <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
-                                                    {booking.package.title}
+                                        value={
+                                            booking.packageUrl && booking.package?.title ? (() => {
+                                                const params = new URLSearchParams();
+                                                params.set("adults", String(booking.travellers));
+                                                params.set("date", booking.startDate.toISOString().slice(0, 10));
+                                                return (
+                                                    <Link href={`${booking.packageUrl}?${params.toString()}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                                        {booking.package.title}
+                                                        <ExternalLink className="size-3.5" />
+                                                    </Link>
+                                                );
+                                            })() : bookedPackage ? (
+                                                // A sales/custom-package booking — booking.package (the
+                                                // catalogue relation) is always null for these, so this is
+                                                // the only place that actually names what was booked.
+                                                <Link href={`/dashboard/package-builder/${bookedPackage.id}`} target="_blank" className="inline-flex items-center gap-1 text-dashboard-primary hover:underline">
+                                                    {bookedPackage.title}
                                                     <ExternalLink className="size-3.5" />
                                                 </Link>
-                                            );
-                                        })() : booking.package?.title}
+                                            ) : null
+                                        }
                                     />
+                                    {bookedPackage?.totalPrice != null && (() => {
+                                        const quotedPaise = Math.round(bookedPackage.totalPrice * 100);
+                                        const mismatch = Math.abs(quotedPaise - booking.totalAmount_paise) > 100; // >₹1
+                                        return (
+                                            <Field
+                                                label="Quoted Price"
+                                                value={
+                                                    <span className={mismatch ? "text-dashboard-warning font-medium" : undefined}>
+                                                        {inr(bookedPackage.totalPrice)}
+                                                        {mismatch && " ⚠ differs from booking total"}
+                                                    </span>
+                                                }
+                                            />
+                                        );
+                                    })()}
                                     <Field label="Destination" value={booking.destination?.name} />
                                 </>
                             )}

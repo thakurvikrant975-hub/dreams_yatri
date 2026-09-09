@@ -12,6 +12,7 @@ import {
 } from "../components/ui/breadcrumb";
 import { Skeleton } from "../components/ui/skeleton";
 import { PageHeader } from "../components/dashboard/PageHeader";
+import { NewBookingRequestDialog } from "./NewBookingRequestDialog";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 const PAYMENT_STATUSES = [
@@ -149,12 +150,16 @@ async function BookingsData({
                         // What was actually sent to the client. Booking.packageId
                         // points at the catalogue and is null for these, so
                         // without this every sales booking read "—" where its
-                        // name should be.
+                        // name should be. ACCEPTED is the package the exec
+                        // actually pinned this booking to (see requestBooking
+                        // in payment-proof.actions.ts) — preferred over a
+                        // merely-SENT one so a query that had several options
+                        // shows the one that actually won, not a guess.
                         custom_packages: {
-                            where: { status: "SENT" },
-                            select: { title: true },
+                            where: { status: { in: ["ACCEPTED", "SENT"] } },
+                            select: { title: true, status: true },
                             orderBy: { sentAt: "desc" },
-                            take: 1,
+                            take: 5,
                         },
                     },
                 },
@@ -168,7 +173,16 @@ async function BookingsData({
     const filteredTotal = await db.booking.count({ where });
     const totalPages = Math.max(1, Math.ceil(filteredTotal / limit));
 
-    const rows = bookings.map((b) => ({ ...b, hasPendingProof: b.payments.length > 0 }));
+    const rows = bookings.map((b) => ({
+        ...b,
+        hasPendingProof: b.payments.length > 0,
+        sourceQuery: b.sourceQuery && {
+            ...b.sourceQuery,
+            custom_packages: [...b.sourceQuery.custom_packages].sort(
+                (x, y) => (x.status === "ACCEPTED" ? -1 : 0) - (y.status === "ACCEPTED" ? -1 : 0),
+            ),
+        },
+    }));
 
     return (
         <>
@@ -234,6 +248,7 @@ export default function PackageBookingsClient({
                 title="Package Bookings"
                 description="Manage and review all package booking orders"
                 icon={BookCheck}
+                actions={<NewBookingRequestDialog />}
             />
 
             <Suspense

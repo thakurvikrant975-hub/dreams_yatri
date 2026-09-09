@@ -511,6 +511,25 @@ export async function closeSalesQuery(packageQueryId: string, formData: FormData
         const { teamMemberId, teamMemberName } = await getCurrentActor();
         const isConverted = parsed.data.closeReasonId === "CONVERTED";
 
+        // Re-closing an already-Converted query with a different reason would
+        // silently flip status away from CONVERTED while its auto-created
+        // Booking (and any payment proof submitted against it) sits there
+        // unaware — see payment-proof.actions.ts. Re-selecting Converted
+        // again is a harmless no-op (tryCreateBookingFromConvertedQuery is
+        // idempotent), so only block an actual change away from it.
+        if (!isConverted) {
+            const current = await db.package_queries.findUnique({
+                where: { id: packageQueryId },
+                select: { status: true, booking: { select: { bookingNumber: true } } },
+            });
+            if (current?.status === "CONVERTED" && current.booking) {
+                return {
+                    success: false,
+                    message: `This query has a booking (${current.booking.bookingNumber}) — cancel or resolve it in Package Bookings before changing this query's status.`,
+                };
+            }
+        }
+
         await db.package_queries.update({
             where: { id: packageQueryId },
             data: {

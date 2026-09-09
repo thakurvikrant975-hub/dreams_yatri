@@ -196,9 +196,23 @@ export async function approveReopenRequest(id: string): Promise<{ success: boole
 
         const query = await db.package_queries.findUnique({
             where:  { id: request.queryId },
-            select: { id: true, name: true },
+            select: { id: true, name: true, booking: { select: { bookingNumber: true, paymentStatus: true } } },
         });
         if (!query) return { success: false, error: "The query no longer exists" };
+
+        // Belt-and-suspenders alongside closeSalesQuery's own guard — a query
+        // only reaches CLOSED (reopen-eligible) with a Booking still attached
+        // if that booking never had a payment approved, since payment
+        // approval doesn't touch query status but closeSalesQuery now refuses
+        // to move a CONVERTED query away while a Booking exists at all. Once
+        // a payment IS approved, reopening must go through cancelling the
+        // booking first rather than silently reactivating the query under it.
+        if (query.booking && (query.booking.paymentStatus === "ADVANCE_PAID" || query.booking.paymentStatus === "FULLY_PAID")) {
+            return {
+                success: false,
+                error: `This query's booking (${query.booking.bookingNumber}) has an approved payment — cancel or resolve it in Package Bookings before reopening.`,
+            };
+        }
 
         await db.package_queries.update({
             where: { id: request.queryId },
