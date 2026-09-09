@@ -44,6 +44,13 @@ export type SalesTeamAnalytics = {
     queriesThisMonth: number;
     convertedThisMonth: number;
     pendingFollowUps: number;
+    /** Sum of every team's own target plus every unassigned member's target
+     * — never a member sum inside a team, since a team's target is set
+     * independently of its roster's individual ones (same rule the
+     * Sales Targets page uses). Null when nobody has a target set at all,
+     * so callers can tell "0" apart from "unset". */
+    revenueTarget: number | null;
+    conversionTarget: number | null;
   };
 };
 
@@ -178,12 +185,20 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
   const totalQueriesThisMonth = [...byQueriesMember.values()].reduce((s, v) => s + v, 0);
   const totalConvertedThisMonth = [...byConvertedMember.values()].reduce((s, v) => s + v, 0);
 
+  const targetRows = [...teamPerf.map((t) => ({ revenueTarget: t.teamRevenueTarget, conversionTarget: t.teamConversionTarget })), ...unassigned.map((m) => ({ revenueTarget: m.revenueTarget, conversionTarget: m.conversionTarget }))];
+  const sumTargets = (key: "revenueTarget" | "conversionTarget") => {
+    const set = targetRows.filter((r) => r[key] !== null);
+    return set.length > 0 ? set.reduce((s, r) => s + (r[key] ?? 0), 0) : null;
+  };
+
   const companyTotals = {
     confirmedThisMonth: [...byBookingMember.values()].reduce((s, g) => s + g._count._all, 0),
     totalRevenue: [...byBookingMember.values()].reduce((s, g) => s + Number(g._sum.totalAmount ?? 0), 0),
     queriesThisMonth: totalQueriesThisMonth,
     convertedThisMonth: totalConvertedThisMonth,
     pendingFollowUps: [...byPendingMember.values()].reduce((s, v) => s + v, 0),
+    revenueTarget: sumTargets("revenueTarget"),
+    conversionTarget: sumTargets("conversionTarget"),
   };
 
   return { teams: teamPerf, unassigned, companyTotals };

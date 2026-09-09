@@ -16,6 +16,7 @@ import { getTeamLeaderAnalytics } from "../actions/team-leader-analytics-actions
 import { getSalesTeamAnalytics } from "../sales-teams/sales-team-analytics-actions";
 import { getLeaderScope } from "@/app/lib/sales-teams/leader-scope";
 import { istDayOffset } from "../lead-report/ist";
+import { istYearMonth } from "@/app/lib/ist-window";
 import type { CurrentMember } from "@/app/types/members";
 
 export const metadata: Metadata = {
@@ -46,9 +47,9 @@ async function LeadManagerAnalyticsSection({ member, from, to }: SectionProps) {
   return <LeadManagerAnalytics data={data} from={from} to={to} generatedByName={member.name} />;
 }
 
-async function SalesManagerAnalyticsSection(_: SectionProps) {
-  const data = await getSalesTeamAnalytics();
-  return <SalesManagerAnalytics data={data} />;
+async function SalesManagerAnalyticsSection({ from, to }: SectionProps) {
+  const data = await getSalesTeamAnalytics(from, to);
+  return <SalesManagerAnalytics data={data} from={from} to={to} />;
 }
 
 async function TeamLeaderAnalyticsSection({ from, to }: SectionProps) {
@@ -87,6 +88,11 @@ function todayStr() {
   return istDayOffset(0);
 }
 
+function monthStartStr() {
+  const { year, month } = istYearMonth();
+  return `${year}-${String(month).padStart(2, "0")}-01`;
+}
+
 export default async function AnalyticsPage({
   searchParams,
 }: {
@@ -107,13 +113,19 @@ export default async function AnalyticsPage({
   }
 
   const { member } = ctx;
-  const from = sp.from ?? todayStr();
-  const to = sp.to ?? todayStr();
 
   const identifier =
     member.teamRole?.name?.toLowerCase() ||
     member.department?.name?.toLowerCase() ||
     "";
+
+  // Every other role defaults to "today" — but a Sales Manager's targets are
+  // monthly, so opening the page to a single day next to a monthly target
+  // reads as a near-empty report. Default that one role to month-to-date;
+  // an explicit ?from=/&to= (e.g. from the range picker) still wins.
+  const defaultFrom = identifier === "sales manager" ? monthStartStr() : todayStr();
+  const from = sp.from ?? defaultFrom;
+  const to = sp.to ?? todayStr();
 
   const Section = ANALYTICS_MAP[identifier] ?? GeneralAnalyticsSection;
 
