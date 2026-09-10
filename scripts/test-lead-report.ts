@@ -11,7 +11,10 @@
  */
 import {
   summariseHandovers,
+  summariseByExec,
+  groupSizeBand,
   type AssignedLead,
+  type ExecLead,
 } from "../app/(dashboard)/dashboard/(main)/actions/leadReportTotals";
 
 let failures = 0;
@@ -112,6 +115,58 @@ console.log("\nEdges:");
     partners,
   );
   check("ranked by count, then name", t.byAssignee.inHouse.map((r) => r.name), ["Amit", "Bela", "Zara"]);
+}
+
+// ── Per-exec breakdown (the Excel download) ──────────────────────────────
+const execLead = (over: Partial<ExecLead> = {}): ExecLead => ({
+  assignedTo: "exec-priya", assignedToName: "Priya", isPartnerAgency: false,
+  status: "ASSIGNED", groupSize: 2, destination: "Goa", channel: "Google",
+  ...over,
+});
+
+console.log("\nGroup-size bands:");
+check(
+  "band edges",
+  [1, 2, 3, 5, 6, 10, 11, 40].map(groupSizeBand),
+  ["1-2", "1-2", "3-5", "3-5", "6-10", "6-10", "11+", "11+"],
+);
+check("no size, zero or negative is not given", [null, 0, -3].map(groupSizeBand), [null, null, null]);
+
+console.log("\nOne exec's breakdown:");
+{
+  const [r] = summariseByExec([
+    execLead({ groupSize: 2, status: "CONVERTED" }),
+    execLead({ groupSize: 4, status: "PAYMENT_INITIATED", destination: "goa " }),
+    execLead({ groupSize: 12, status: "CLIENT_DECLINED", destination: "Kerala", channel: "Meta" }),
+    execLead({ groupSize: null, status: "FOLLOW_UP", destination: null, channel: "Meta" }),
+    execLead({ groupSize: 0, status: "CLOSED", destination: "Kerala" }),
+  ]);
+  check("groups", r.groups, 5);
+  check("pax counts only sized groups", r.pax, 18);
+  check("bands", r.bands, { "1-2": 1, "3-5": 1, "6-10": 0, "11+": 1 });
+  check("size not given", r.sizeNotGiven, 2);
+  check("bands + not given = groups", Object.values(r.bands).reduce((s, n) => s + n, 0) + r.sizeNotGiven, r.groups);
+  check("outcomes", [r.open, r.converted, r.lost], [1, 2, 2]);
+  check("conversion rate", r.convRate, 40);
+  check("destinations merged case-insensitively", r.byDestination, { Goa: 2, Kerala: 2, "Not specified": 1 });
+  check("sources", r.byChannel, { Google: 3, Meta: 2 });
+}
+
+console.log("\nRows across execs:");
+{
+  const rows = summariseByExec([
+    execLead({ assignedTo: "exec-rahul-1", assignedToName: "Rahul" }),
+    execLead({ assignedTo: "exec-rahul-2", assignedToName: "Rahul" }),
+    execLead({ assignedTo: "exec-rahul-2", assignedToName: "Rahul" }),
+    execLead({ assignedTo: AGENCY_A, assignedToName: "Skyline Travels", isPartnerAgency: true }),
+    execLead({ assignedTo: AGENCY_A, assignedToName: "Skyline Travels", isPartnerAgency: true }),
+    execLead({ assignedTo: AGENCY_A, assignedToName: "Skyline Travels", isPartnerAgency: true }),
+    execLead({ assignedTo: "exec-new", assignedToName: "  " }),
+  ]);
+  check("two execs named Rahul stay two rows", rows.filter((r) => r.name === "Rahul").map((r) => r.groups), [2, 1]);
+  check("rows sum to every handover", rows.reduce((s, r) => s + r.groups, 0), 7);
+  check("our execs first, agencies last", rows.map((r) => r.name), ["Rahul", "Rahul", "Unnamed", "Skyline Travels"]);
+  check("empty range", summariseByExec([]), []);
 }
 
 console.log(`\n${failures === 0 ? "All passed" : `${failures} failed`}\n`);

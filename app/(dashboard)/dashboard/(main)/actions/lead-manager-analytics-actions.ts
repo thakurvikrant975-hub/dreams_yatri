@@ -87,6 +87,11 @@ export type LeadRow = {
   destination: string | null;
   channel: string;
   status: string;
+  /** Travellers on the enquiry, when the lead said. */
+  groupSize: number | null;
+  /** The assignee's id — the per-exec download keys on it, since two execs
+   * can share a name. */
+  assignedTo: string | null;
   assignedToName: string | null;
   /** Whether the lead was sold on to an outside agency rather than worked
    * in-house. Agencies reach leads through the same `assignedTo` column our
@@ -167,8 +172,8 @@ export type LeadManagerAnalyticsData = {
 
 function toLeadRow(q: {
   id: string; name: string; phone: string; destination: string | null;
-  source: string; utmSource: string | null; status: string;
-  assignedToName: string | null; createdAt: Date; assignedAt: Date | null;
+  source: string; utmSource: string | null; status: string; groupSize: number | null;
+  assignedTo: string | null; assignedToName: string | null; createdAt: Date; assignedAt: Date | null;
 }, isPartnerAgency: boolean): LeadRow {
   return {
     id: q.id,
@@ -177,6 +182,8 @@ function toLeadRow(q: {
     destination: q.destination,
     channel: resolveChannel(q.source, q.utmSource),
     status: q.status,
+    groupSize: q.groupSize,
+    assignedTo: q.assignedTo,
     assignedToName: q.assignedToName,
     isPartnerAgency,
     createdAt: q.createdAt.toISOString(),
@@ -195,7 +202,7 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
 
   const selectFields = {
     id: true, name: true, phone: true, destination: true,
-    source: true, utmSource: true, status: true,
+    source: true, utmSource: true, status: true, groupSize: true,
     assignedTo: true, assignedToName: true, createdAt: true, assignedAt: true,
   } as const;
 
