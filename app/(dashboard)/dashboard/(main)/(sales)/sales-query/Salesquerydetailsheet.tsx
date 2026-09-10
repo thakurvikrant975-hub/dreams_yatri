@@ -29,7 +29,8 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
 import { DeletePackageDialog } from "./Deletepackagedialog";
-import { reopenSalesQuery, getCallLogsForQuery, updateQueryMessage } from "./actions";
+import { getCallLogsForQuery, updateQueryMessage } from "./actions";
+import { RequestReopenDialog } from "./RequestReopenDialog";
 import { readRequirements } from "./requirements";
 import type { SentPackageInfo, CallLogEntry, CallLogStatus } from "./actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
@@ -111,6 +112,9 @@ export type SalesQuery = {
   requirements: unknown;
   _count: { queryFollowUps: number };
   customPackages: SentPackageInfo[];
+  /** Id of this query's own PENDING QueryReopenRequest, if any — see
+   * SalesQueryRow's field of the same name in actions.ts. */
+  pendingReopenRequestId?: string | null;
 };
 
 // Mirrors TRIP_TYPES in Packagedetailsdialog.tsx (the "Package Requirements"
@@ -252,7 +256,6 @@ export function SalesQueryDetailSheet({
     onRefresh,
     isTeamLead = false,
 }: Props) {
-    const [isPendingReopen, startReopen] = useTransition();
     const [callLogs, setCallLogs] = useState<CallLogEntry[]>([]);
     const [loadingCallLogs, setLoadingCallLogs] = useState(false);
 
@@ -269,18 +272,6 @@ export function SalesQueryDetailSheet({
     if (!query) return null;
 
     const isClosed = query.status === "CLOSED";
-
-    function handleReopen() {
-        startReopen(async () => {
-            const r = await reopenSalesQuery(query!.id);
-            if (r.success) {
-                toast.success(r.message);
-                onRefresh?.();
-            } else {
-                toast.error(r.message);
-            }
-        });
-    }
 
     // Requirements summary for display.
     //
@@ -384,16 +375,23 @@ export function SalesQueryDetailSheet({
 
                     {isClosed && (
                         <div className="flex gap-2 pt-3 flex-wrap">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50"
-                                onClick={handleReopen}
-                                disabled={isPendingReopen}
-                            >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                                {isPendingReopen ? "Reopening..." : "Reopen Query"}
-                            </Button>
+                            {query.pendingReopenRequestId ? (
+                                <Badge variant="outline" className="gap-1.5 text-amber-600 border-amber-200 bg-amber-50">
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    Reopen requested — pending review
+                                </Badge>
+                            ) : (
+                                <RequestReopenDialog queryId={query.id} leadName={query.name} onDone={onRefresh}>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-1.5 text-green-600 border-green-200 hover:bg-green-50"
+                                    >
+                                        <RotateCcw className="h-3.5 w-3.5" />
+                                        Request Reopen
+                                    </Button>
+                                </RequestReopenDialog>
+                            )}
                         </div>
                     )}
 

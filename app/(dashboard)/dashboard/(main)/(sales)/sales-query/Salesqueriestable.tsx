@@ -5,11 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { format, formatDistanceToNow, isToday } from "date-fns";
 import {
     CalendarClock, Eye, Phone, Mail, PhoneCall,
-    MapPin, Users, Calendar, StickyNote, TrendingUp,
+    MapPin, Users, Calendar, StickyNote,
     RotateCcw, ClipboardList, Inbox, Send, Clock, UserCheck,
     CircleX, Package, Plus, Focus, MessageSquare,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import {
@@ -26,7 +25,8 @@ import { CallLogDialog } from "./CallLogDialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { SalesQueryDetailSheet } from "./Salesquerydetailsheet";
-import { reopenSalesQuery, getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
+import { getSalesQueryById, getMyTeamMembers, reassignToTeamMember } from "./actions";
+import { RequestReopenDialog } from "./RequestReopenDialog";
 import { hasRequirements } from "./requirements";
 import { mapCustomPackage } from "./package-status";
 import { AssignQueryDropdown } from "../../(marketing)/queries/Assignquerydropdown";
@@ -108,24 +108,15 @@ function ActionCell({
     onView,
     isTeamLead,
 }: {
-    query: PackageQueryType;
+    query: SalesQueryRow;
     onView: () => void;
     /** Shows the Timeline sheet, with its "add note" form enabled — a Team
      * Leader's way of updating a query's timeline directly, rather than only
      * reading it. */
     isTeamLead: boolean;
 }) {
-    const [isPendingReopen, startReopen] = useTransition();
     const closed = isClosedStatus(query.status as SalesQueryStatus);
     const converted = isConvertedStatus(query.status as SalesQueryStatus);
-    function handleReopen(e: React.MouseEvent) {
-        e.stopPropagation();
-        startReopen(async () => {
-            const r = await reopenSalesQuery(query.id);
-            if (r.success) toast.success(r.message);
-            else toast.error(r.message);
-        });
-    }
 
     return (
         <TooltipProvider delayDuration={300}>
@@ -210,21 +201,34 @@ function ActionCell({
                     </Tooltip>
                 )}
 
-                {/* Reopen — closed only */}
+                {/* Reopen — closed only, now request-based (see RequestReopenDialog) */}
                 {closed && (
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost" size="icon"
-                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
-                                onClick={handleReopen}
-                                disabled={isPendingReopen}
-                            >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Reopen Query</TooltipContent>
-                    </Tooltip>
+                    query.pendingReopenRequestId ? (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span className="flex h-8 w-8 items-center justify-center text-amber-500">
+                                    <Clock className="h-3.5 w-3.5" />
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Reopen requested — pending review</TooltipContent>
+                        </Tooltip>
+                    ) : (
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span onClick={(e) => e.stopPropagation()}>
+                                    <RequestReopenDialog queryId={query.id} leadName={query.name}>
+                                        <Button
+                                            variant="ghost" size="icon"
+                                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950/30"
+                                        >
+                                            <RotateCcw className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </RequestReopenDialog>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Request Reopen</TooltipContent>
+                        </Tooltip>
+                    )
                 )}
             </div>
         </TooltipProvider>
@@ -373,6 +377,7 @@ export function SalesQueriesTable({
     ).length;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
+    // Every status bucketed exactly once, so the six breakdown cards sum to totalCount.
     const totalCount = queries.length;
     // New today = assigned to this user today (or created today if no assignedAt)
     const newToday = queries.filter(q => {
@@ -380,17 +385,26 @@ export function SalesQueriesTable({
         return isToday(new Date(dateToCheck));
     }).length;
 
+    const newCount = queries.filter(q =>
+        q.status === "SUBMITTED" || q.status === "VERIFIED" || q.status === "ASSIGNED",
+    ).length;
+
     const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
     const followUpCount = queries.filter(q => q.status === "FOLLOW_UP").length;
 
-    const submitted = queries.filter(q => q.status === "SUBMITTED").length;
+    const packageSentCount = queries.filter(q =>
+        q.status === "PACKAGE_SENT" || q.status === "CLIENT_ACCEPTED"
+        || q.status === "CLIENT_DECLINED" || q.status === "PAYMENT_INITIATED",
+    ).length;
 
-    const closedCount = queries.filter(q => isClosedStatus(q.status as SalesQueryStatus)).length;
+    const bookedCount = queries.filter((q) => q.status === "CONVERTED").length;
 
-    const bookedCount = queries.filter((q) => q.status === "PAYMENT_INITIATED" || q.status === "CONVERTED").length;
+    const closedCount = queries.filter(q =>
+        q.status === "CLOSED" || q.status === "REJECTED",
+    ).length;
 
-    // Conversation % = closed queries that converted (booked) / total closed
+    // Conversion % = converted queries / total
     const convRate = totalCount > 0 ? Math.round((bookedCount / totalCount) * 100) : 0;
 
     // ── Columns ───────────────────────────────────────────────────────────────
@@ -859,21 +873,22 @@ export function SalesQueriesTable({
                     </div>
                 </div>
 
-                {/* Stats — matches requested: total, new today, in progress, closed, booked, conv% */}
+                {/* Stats — every status bucketed exactly once, so New + In Progress +
+                    Follow Up + Package Sent + Converted + Closed always sums to Total. */}
                 <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
-                        sub={rangeLabel}
+                        sub={`${rangeLabel} · ${newToday} new today`}
                         icon={Inbox}
                         iconText="text-dashboard-primary"
                     />
                     <StatCard
-                        label="New Today"
-                        value={newToday}
+                        label="New"
+                        value={newCount}
                         icon={Send}
                         iconText="text-dashboard-info"
-                        muted={submitted === 0}
+                        muted={newCount === 0}
                     />
                     <StatCard
                         label="In Progress"
@@ -889,23 +904,25 @@ export function SalesQueriesTable({
                         muted={followUpCount === 0}
                     />
                     <StatCard
-                        label="Closed"
-                        value={closedCount}
-                        icon={CircleX}
-                        iconText="text-dashboard-success"
+                        label="Package Sent"
+                        value={packageSentCount}
+                        icon={Package}
+                        iconText="text-dashboard-secondary"
+                        muted={packageSentCount === 0}
                     />
                     <StatCard
                         label="Converted"
                         value={bookedCount}
                         icon={UserCheck}
-                        iconText="text-dashboard-secondary"
+                        iconText="text-dashboard-success"
+                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
                     />
                     <StatCard
-                        label="Conv. Rate"
-                        value={`${convRate}%`}
-                        icon={TrendingUp}
-                        iconText="text-dashboard-accent"
-                        trend={convRate > 0 ? { value: `${convRate}%`, positive: true } : undefined}
+                        label="Closed"
+                        value={closedCount}
+                        icon={CircleX}
+                        iconText="text-dashboard-base-content"
+                        muted={closedCount === 0}
                     />
                 </StatGrid>
 

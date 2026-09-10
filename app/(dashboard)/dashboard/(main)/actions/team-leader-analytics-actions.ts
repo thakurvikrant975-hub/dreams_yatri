@@ -16,6 +16,8 @@ const SOURCE_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp Meta",
   WHATSAPP_GOOGLE: "WhatsApp Google",
   META: "Meta",
+  SEO: "SEO",
+  SOCIAL_MEDIA: "Social Media",
   PHONE_CALL: "Phone Call",
   REFERRAL: "Referral",
   OTHER: "Other",
@@ -34,6 +36,8 @@ const CHANNEL_COLORS: Record<string, string> = {
   Referral: "var(--color-dashboard-warning)",
   "Contact Form": "#10b981",
   "Package Form": "#f43f5e",
+  SEO: "#14b8a6",
+  "Social Media": "#ec4899",
   Other: "var(--color-dashboard-neutral)",
 };
 const FALLBACK_PALETTE = [

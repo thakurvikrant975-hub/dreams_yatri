@@ -9,6 +9,7 @@ import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
+import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -173,7 +174,14 @@ export type PackageQuery = {
      * packageSentAt; falls back to the first package on file if none has
      * been sent yet. */
     packagePrice: number | null;
+    /** One entry per logged call, oldest first — mirrors SalesQueryRow.callLogStatuses
+     * in the sales-query route so the Lead column can render the same colored dots. */
+    callLogStatuses: CallLogStatus[];
 };
+
+/** Outcome of a single logged call — kept as its own union (rather than importing
+ * from the sales-query route) so this route doesn't reach across route groups. */
+export type CallLogStatus = "CONNECTED" | "NOT_PICKED" | "DECLINED";
 
 // Aliases for backwards compatibility
 export type PackageQueryType = PackageQuery;
@@ -276,6 +284,20 @@ export async function getCurrentActor() {
     }
 
     return { actor, teamMemberId, teamMemberName };
+}
+
+/** Like getCurrentActor, but resolves to the effective member — the FSD's
+ * "View As" target when impersonating, otherwise the same real member. Use
+ * this for "what should I see" (whose queries, whose follow-ups) instead of
+ * getCurrentActor, which stays pinned to the real session for write
+ * attribution (who actually clicked the button) — same split the package
+ * review actions already use via getEffectiveMember/decideCapsFor. */
+export async function getEffectiveActor() {
+    const effective = await getEffectiveMember();
+    return {
+        teamMemberId:   effective?.member.id ?? null,
+        teamMemberName: effective?.member.name ?? null,
+    };
 }
 
 // ── Shared READ (also used by sales/actions.ts) ───────────────────────────────
@@ -772,6 +794,25 @@ export async function getQueries(): Promise<PackageQuery[]> {
         orderBy: { createdAt: "desc" },
     }) as any[];
 
+    // Call logs live as QueryTimeline rows (meta.kind === "CALL_LOG"), not their
+    // own table — same batched second lookup as getSalesQueries() in the
+    // sales-query route, so the Lead column can render the same colored dots.
+    const queryIds = queries.map((q) => q.id);
+    const callLogRows = queryIds.length > 0
+        ? await db.queryTimeline.findMany({
+            where:   { queryId: { in: queryIds }, meta: { path: ["kind"], equals: "CALL_LOG" } },
+            orderBy: { createdAt: "asc" },
+            select:  { queryId: true, meta: true },
+        })
+        : [];
+    const callLogStatusesByQueryId = new Map<string, CallLogStatus[]>();
+    for (const row of callLogRows) {
+        const status = (row.meta as { status?: CallLogStatus } | null)?.status ?? "CONNECTED";
+        const arr = callLogStatusesByQueryId.get(row.queryId) ?? [];
+        arr.push(status);
+        callLogStatusesByQueryId.set(row.queryId, arr);
+    }
+
     return queries.map((q) => {
         const sentPackage = q.custom_packages?.find((p: { sentAt: Date | null }) => p.sentAt);
         return {
@@ -780,6 +821,7 @@ export async function getQueries(): Promise<PackageQuery[]> {
             totalLeadQueries: q.lead_profiles?._count?.package_queries ?? 1,
             packageSentAt: sentPackage?.sentAt ?? null,
             packagePrice: (sentPackage ?? q.custom_packages?.[0])?.totalPrice ?? null,
+            callLogStatuses: callLogStatusesByQueryId.get(q.id) ?? [],
         };
     }) as PackageQuery[];
 }

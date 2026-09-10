@@ -18,7 +18,8 @@ import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/C
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { QueryTimelineSheet } from "./QueryTimelineSheet";
 import { getQueryById } from "./actions";
-import type { PackageQuery, RejectionReason } from "./actions";
+import type { PackageQuery, RejectionReason, CallLogStatus } from "./actions";
+import { cn } from "@/app/lib/utils";
 import { Pencil } from "lucide-react";
 import { EditQueryDialog } from "./Editquerydialog";
 import { AssignQueryDropdown } from "./Assignquerydropdown";
@@ -38,6 +39,14 @@ type Props = { queries: PackageQuery[]; reasons: RejectionReason[] };
 
 const DEFAULT_PAGE_SIZE = 10;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+// One dot per logged call, oldest first — same color language as sales-query's
+// CallLogDialog (green=connected, yellow=not picked, red=declined).
+const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
+    CONNECTED:  "bg-green-500",
+    NOT_PICKED: "bg-yellow-500",
+    DECLINED:   "bg-red-500",
+};
 
 const STATUS_FILTER_OPTIONS = [
     { label: "Submitted", value: "SUBMITTED" },
@@ -161,7 +170,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     const [filterStatus, setFilterStatus] = useState("all");
     const [filterSource, setFilterSource] = useState("all");
     const [filterVerified, setFilterVerified] = useState("all");
-    const [filterAssigned, setFilterAssigned] = useState("all");
+    const [filterMember, setFilterMember] = useState("all");
     const [filterDestination, setFilterDestination] = useState("all");
     const [minCost, setMinCost] = useState<number | null>(null);
     const [minGroupSize, setMinGroupSize] = useState<number | null>(null);
@@ -205,16 +214,16 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         const matchVerified = filterVerified === "all"
             || (filterVerified === "verified" && q.verified)
             || (filterVerified === "unverified" && !q.verified);
-        const matchAssigned = filterAssigned === "all"
-            || (filterAssigned === "assigned" && !!q.assignedTo)
-            || (filterAssigned === "unassigned" && !q.assignedTo);
+        const matchMember = filterMember === "all"
+            || (filterMember === "unassigned" && !q.assignedTo)
+            || q.assignedTo === filterMember;
         const matchDestination = filterDestination === "all" || q.destination === filterDestination;
         // No package/price on file yet never satisfies a "cost at least X"
         // ask — an unpriced query isn't "cheap", it just hasn't been quoted.
         const matchCost = minCost === null || (q.packagePrice !== null && q.packagePrice >= minCost);
         const matchGroupSize = minGroupSize === null || (q.groupSize !== null && q.groupSize >= minGroupSize);
 
-        return matchSearch && matchStatus && matchSource && matchVerified && matchAssigned
+        return matchSearch && matchStatus && matchSource && matchVerified && matchMember
             && matchDestination && matchCost && matchGroupSize;
     });
 
@@ -222,6 +231,21 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         const seen = new Set<string>();
         for (const q of queries) if (q.destination) seen.add(q.destination);
         return Array.from(seen).sort().map((d) => ({ label: d, value: d }));
+    }, [queries]);
+
+    // Team members actually present in this query set, keyed by id so
+    // duplicate names (rare, but possible) don't collapse into one filter row.
+    const memberOptions = useMemo(() => {
+        const seen = new Map<string, string>();
+        for (const q of queries) {
+            if (q.assignedTo) seen.set(q.assignedTo, q.assignedToName ?? "Unknown");
+        }
+        return [
+            { label: "Unassigned", value: "unassigned" },
+            ...Array.from(seen.entries())
+                .sort((a, b) => a[1].localeCompare(b[1]))
+                .map(([value, label]) => ({ label, value })),
+        ];
     }, [queries]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -233,7 +257,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         setPage(1);
     }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
-        || filterVerified !== "all" || filterAssigned !== "all" || filterDestination !== "all"
+        || filterVerified !== "all" || filterMember !== "all" || filterDestination !== "all"
         || minCost !== null || minGroupSize !== null;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
@@ -275,6 +299,19 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                         <p className="text-[11px] text-dashboard-base-content/80 truncate max-w-[180px]">
                             {q.email}
                         </p>
+                    )}
+                    {q.callLogStatuses.length > 0 && (
+                        <div
+                            title={`${q.callLogStatuses.length} call${q.callLogStatuses.length > 1 ? "s" : ""} logged`}
+                            className="flex items-center gap-1"
+                        >
+                            {q.callLogStatuses.map((status, i) => (
+                                <span
+                                    key={i}
+                                    className={cn("h-1.5 w-1.5 rounded-full shrink-0", CALL_STATUS_DOT[status])}
+                                />
+                            ))}
+                        </div>
                     )}
                     {q.assignedTo && (
                         <div className="flex items-center gap-1 text-[10px] text-dashboard-primary mt-0.5">
@@ -556,14 +593,11 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                             ],
                         },
                         {
-                            value: filterAssigned,
-                            onChange: (v) => { setFilterAssigned(v); setPage(1); },
-                            placeholder: "Assignment",
-                            width: "w-36",
-                            options: [
-                                { label: "Assigned", value: "assigned" },
-                                { label: "Unassigned", value: "unassigned" },
-                            ],
+                            value: filterMember,
+                            onChange: (v) => { setFilterMember(v); setPage(1); },
+                            placeholder: "All Team Members",
+                            width: "w-44",
+                            options: memberOptions,
                         },
                         {
                             value: filterDestination,

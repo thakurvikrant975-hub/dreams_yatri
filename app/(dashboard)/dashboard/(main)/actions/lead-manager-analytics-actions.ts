@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/app/lib/db";
 import { istDayBounds } from "@/app/lib/ist-window";
 import { istDayKey, IST_TZ } from "../lead-report/ist";
+import { summariseHandovers, type AssigneeRow } from "./leadReportTotals";
 
 const MAX_DAYS = 366;
 
@@ -16,6 +17,8 @@ const SOURCE_LABELS: Record<string, string> = {
   WHATSAPP: "WhatsApp Meta",
   WHATSAPP_GOOGLE: "WhatsApp Google",
   META: "Meta",
+  SEO: "SEO",
+  SOCIAL_MEDIA: "Social Media",
   PHONE_CALL: "Phone Call",
   REFERRAL: "Referral",
   OTHER: "Other",
@@ -34,6 +37,8 @@ const CHANNEL_COLORS: Record<string, string> = {
   Referral: "var(--color-dashboard-warning)",
   "Contact Form": "#10b981",
   "Package Form": "#f43f5e",
+  SEO: "#14b8a6",
+  "Social Media": "#ec4899",
   Other: "var(--color-dashboard-neutral)",
 };
 const FALLBACK_PALETTE = [
@@ -83,7 +88,15 @@ export type LeadRow = {
   channel: string;
   status: string;
   assignedToName: string | null;
+  /** Whether the lead was sold on to an outside agency rather than worked
+   * in-house. Agencies reach leads through the same `assignedTo` column our
+   * own staff do, so nothing else in the row distinguishes them. */
+  isPartnerAgency: boolean;
   createdAt: string;
+  /** When the lead was handed over. This is the date the report is built
+   * around; `createdAt` is kept so a row can still show how long the lead
+   * waited before someone got it. */
+  assignedAt: string | null;
 };
 
 export type DestinationChannelBreakdown = {
@@ -92,16 +105,47 @@ export type DestinationChannelBreakdown = {
   channels: { name: string; value: number; color: string }[];
 };
 
+export type { AssigneeRow };
+
+/**
+ * Everything on this report describes one population: the leads HANDED OVER
+ * inside the range, windowed on assignedAt.
+ *
+ * It used to mix two. The totals, the charts and the tables were all intake
+ * — leads that arrived in the range — while the per-exec table counted
+ * handovers, and the two were printed on one page as though they were the
+ * same thing. They cannot be: most of a morning's handovers are last night's
+ * leads, so "108 received today" sat next to 112 leads assigned to our own
+ * execs and read as a miscount. Now every figure below counts the same rows,
+ * and they all add up.
+ *
+ * Intake has not been dropped, but it is context rather than a second set of
+ * headline numbers: `receivedInRange` and `unassignedInRange` answer "what
+ * came in, and what is still sitting there" and are labelled as such.
+ */
 export type LeadManagerAnalyticsData = {
   summary: {
-    todayLeads: number;
-    totalLeads: number;
+    /** Handovers made today, whichever day each lead came in. */
+    handedOverToday: number;
+    /** Handovers made across the whole range. Every other figure on this
+     * report is a cut of these rows, so they all reconcile to it. */
+    handedOverInRange: number;
+    /** Of those, the ones our own sales executives were given. */
+    inHouse: number;
+    /** And the ones sold on to an outside agency. Adds with `inHouse` back
+     * up to `handedOverInRange`. */
+    partnerAgency: number;
     converted: number;
     convRate: number;
     uniqueDestinations: number;
-    /** Of the leads received in range, how many still have no owner. */
+    /** Context, not a headline: how many leads ARRIVED in the range. This
+     * will not match `handedOverInRange` and is not meant to — they are
+     * different populations. */
+    receivedInRange: number;
+    /** Of those arrivals, how many still have nobody. */
     unassignedInRange: number;
   };
+  /** Handovers per day, bucketed on the day of the handover. */
   dailyTrend: { date: string; leads: number }[];
   byDestination: { name: string; value: number; color: string }[];
   byChannel: { name: string; value: number; color: string }[];
@@ -109,12 +153,14 @@ export type LeadManagerAnalyticsData = {
    * cap) with its own per-channel lead split — feeds the PDF report's
    * per-destination source breakdown. */
   destinationChannelBreakdown: DestinationChannelBreakdown[];
-  /** How many leads each exec was handed in range, counted on the day of the
-   * handover rather than the day the lead came in. There is no "Unassigned"
-   * row: a lead nobody has been given is not a handover — that count is
-   * `summary.unassignedInRange`. */
-  byTeamMember: { name: string; value: number }[];
+  /** Who was handed what, kept in two blocks rather than one ranked list:
+   * a lead worked in-house and a lead sold to an agency are different kinds
+   * of event, and a lead manager reads the split before the ranking. Both
+   * blocks together account for every handover in range. */
+  byAssignee: { inHouse: AssigneeRow[]; partners: AssigneeRow[] };
+  /** Today's handovers. */
   todaysLeads: LeadRow[];
+  /** Every handover in range, newest handover first. */
   reportRows: LeadRow[];
   range: { from: string; to: string };
 };
@@ -122,8 +168,8 @@ export type LeadManagerAnalyticsData = {
 function toLeadRow(q: {
   id: string; name: string; phone: string; destination: string | null;
   source: string; utmSource: string | null; status: string;
-  assignedToName: string | null; createdAt: Date;
-}): LeadRow {
+  assignedToName: string | null; createdAt: Date; assignedAt: Date | null;
+}, isPartnerAgency: boolean): LeadRow {
   return {
     id: q.id,
     name: q.name,
@@ -132,7 +178,9 @@ function toLeadRow(q: {
     channel: resolveChannel(q.source, q.utmSource),
     status: q.status,
     assignedToName: q.assignedToName,
+    isPartnerAgency,
     createdAt: q.createdAt.toISOString(),
+    assignedAt: q.assignedAt?.toISOString() ?? null,
   };
 }
 
@@ -148,42 +196,59 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
   const selectFields = {
     id: true, name: true, phone: true, destination: true,
     source: true, utmSource: true, status: true,
-    assignedTo: true, assignedToName: true, createdAt: true,
+    assignedTo: true, assignedToName: true, createdAt: true, assignedAt: true,
   } as const;
 
-  const [rangeLeads, todaysLeadsRaw, assignedInRange] = await Promise.all([
-    db.package_queries.findMany({
-      where: { deletedAt: null, createdAt: { gte: from, lte: to } },
-      select: selectFields,
-      orderBy: { createdAt: "desc" },
-    }),
-    db.package_queries.findMany({
-      where: { deletedAt: null, createdAt: { gte: todayStart, lte: todayEnd } },
-      select: selectFields,
-      orderBy: { createdAt: "desc" },
-    }),
-    /*
-     * Handovers, not intake — this is the one figure in the report that is
-     * about the day's assignment work rather than the day's lead flow, so it
-     * has to be windowed on assignedAt.
-     *
-     * Keyed on createdAt (and grouped by whoever happened to own the lead
-     * now) it answered a different question: a lead that came in at 11pm and
-     * reached an exec the next morning was counted on the night it arrived,
-     * so a "today" report showed the exec fewer leads than the assignment
-     * panel and than the mails that actually went out. The two can never be
-     * reconciled that way — an exec handed 8 leads today saw 7.
-     */
-    db.package_queries.findMany({
-      where: { deletedAt: null, assignedTo: { not: null }, assignedAt: { gte: from, lte: to } },
-      select: { assignedToName: true },
-    }),
-  ]);
+  /*
+   * The report's population: leads HANDED OVER in the range, not leads that
+   * arrived in it. Windowed on assignedAt, the way Today's Query Assignments
+   * and the team leader's report already count, so one handover is one row
+   * and one assignment mail.
+   */
+  const handedOverWhere = {
+    deletedAt: null,
+    assignedTo: { not: null },
+    assignedAt: { gte: from, lte: to },
+  } as const;
 
-  const reportRows = rangeLeads.map(toLeadRow);
-  const todaysLeads = todaysLeadsRaw.map(toLeadRow);
+  const [assignedLeads, todaysAssignedRaw, receivedInRange, unassignedInRange, partnerMembers] =
+    await Promise.all([
+      db.package_queries.findMany({
+        where: handedOverWhere,
+        select: selectFields,
+        orderBy: { assignedAt: "desc" },
+      }),
+      db.package_queries.findMany({
+        where: { deletedAt: null, assignedTo: { not: null }, assignedAt: { gte: todayStart, lte: todayEnd } },
+        select: selectFields,
+        orderBy: { assignedAt: "desc" },
+      }),
+      // Intake, kept as context. Deliberately a count rather than a second
+      // set of rows: it answers "what came in", which is a different question
+      // from every other figure here, and printing it as a headline beside
+      // them is what made the report look wrong.
+      db.package_queries.count({ where: { deletedAt: null, createdAt: { gte: from, lte: to } } }),
+      db.package_queries.count({
+        where: { deletedAt: null, assignedTo: null, createdAt: { gte: from, lte: to } },
+      }),
+      // Agencies reach leads through the same `assignedTo` column our own
+      // staff do, so the only way to tell a sold lead from a worked one is
+      // the assignee's role flag.
+      db.teamMember.findMany({
+        where: { teamRole: { isPartnerAgency: true } },
+        select: { id: true },
+      }),
+    ]);
 
-  const converted = rangeLeads.filter((q) => q.status === "CONVERTED" || q.status === "PAYMENT_INITIATED").length;
+  const partnerIds = new Set(partnerMembers.map((m) => m.id));
+  const isPartner = (assignedTo: string | null) => !!assignedTo && partnerIds.has(assignedTo);
+
+  const reportRows = assignedLeads.map((q) => toLeadRow(q, isPartner(q.assignedTo)));
+  const todaysLeads = todaysAssignedRaw.map((q) => toLeadRow(q, isPartner(q.assignedTo)));
+
+  // The counting itself lives in leadReportTotals so it can be tested
+  // without a database — see scripts/test-lead-report.ts.
+  const totals = summariseHandovers(assignedLeads, partnerIds);
 
   // ── Destination breakdown — grouped case-insensitively (trimmed) so
   // "Kerala" / "kerala " land in one bucket, displayed title-cased. Every
@@ -191,7 +256,7 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
   // reflects the real data — the UI is responsible for staying readable
   // when the list is long (scrollable chart, paginated table).
   const destCounts = new Map<string, { display: string; count: number }>();
-  for (const q of rangeLeads) {
+  for (const q of assignedLeads) {
     const raw = q.destination?.trim();
     const key = raw ? raw.toLowerCase() : "__unspecified__";
     const display = raw ? titleCase(raw) : "Not specified";
@@ -207,7 +272,7 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
 
   // ── Channel breakdown ("meta, google, etc.") ────────────────────────────
   const channelCounts = new Map<string, number>();
-  for (const q of rangeLeads) {
+  for (const q of assignedLeads) {
     const channel = resolveChannel(q.source, q.utmSource);
     channelCounts.set(channel, (channelCounts.get(channel) ?? 0) + 1);
   }
@@ -222,7 +287,7 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
   // which source") — every destination, not just the top 7 shown on the
   // chart, since the PDF report needs the full picture.
   const destChannelCounts = new Map<string, Map<string, number>>();
-  for (const q of rangeLeads) {
+  for (const q of assignedLeads) {
     const raw = q.destination?.trim();
     const destKey = raw ? raw.toLowerCase() : "__unspecified__";
     const channel = resolveChannel(q.source, q.utmSource);
@@ -244,30 +309,14 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
     };
   });
 
-  // ── Leads handed out, per exec ───────────────────────────────────────────
-  // Counted off `assignedInRange`, so this is every handover made in the
-  // range whichever day the lead itself arrived. It ties out against the
-  // day's assignment mails and against the "Today's Query Assignments" panel,
-  // which counts the same way.
-  const memberCounts = new Map<string, number>();
-  for (const q of assignedInRange) {
-    const name = q.assignedToName?.trim() || "Unnamed";
-    memberCounts.set(name, (memberCounts.get(name) ?? 0) + 1);
-  }
-  const byTeamMember = [...memberCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value]) => ({ name, value }));
-
-  // Reported alongside rather than as a row in the table above: these leads
-  // were never handed to anyone, so they belong to no exec and must not be
-  // added into a total of handovers. Windowed on intake, since the question
-  // is "of what came in, what is still sitting?".
-  const unassignedInRange = rangeLeads.filter((q) => !q.assignedTo).length;
-
   // ── Daily trend ──────────────────────────────────────────────────────────
+  // Bucketed on the day of the handover, matching the window above. Bucketed
+  // by createdAt while the window selected on assignedAt, a lead could land
+  // in no bucket the axis draws — counted in the totals, missing from the
+  // chart.
   const dayBuckets = new Map<string, number>();
-  for (const q of rangeLeads) {
-    const key = dayKey(q.createdAt);
+  for (const q of assignedLeads) {
+    const key = dayKey(q.assignedAt ?? q.createdAt);
     dayBuckets.set(key, (dayBuckets.get(key) ?? 0) + 1);
   }
   const dailyTrend: LeadManagerAnalyticsData["dailyTrend"] = [];
@@ -285,18 +334,21 @@ export async function getLeadManagerAnalytics(fromStr: string, toStr: string): P
 
   return {
     summary: {
-      todayLeads: todaysLeads.length,
-      totalLeads: rangeLeads.length,
-      converted,
-      convRate: rangeLeads.length > 0 ? Math.round((converted / rangeLeads.length) * 100) : 0,
+      handedOverToday: todaysLeads.length,
+      handedOverInRange: totals.handedOverInRange,
+      inHouse: totals.inHouse,
+      partnerAgency: totals.partnerAgency,
+      converted: totals.converted,
+      convRate: totals.convRate,
       uniqueDestinations,
+      receivedInRange,
       unassignedInRange,
     },
     dailyTrend,
     byDestination,
     byChannel,
     destinationChannelBreakdown,
-    byTeamMember,
+    byAssignee: totals.byAssignee,
     todaysLeads,
     reportRows,
     range: { from: fromStr, to: toStr },

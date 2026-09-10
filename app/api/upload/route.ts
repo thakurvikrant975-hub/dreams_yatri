@@ -17,7 +17,7 @@ import { uploadToR2, type ImageFolder } from "@/app/lib/r2/r2upload";
 const VALID_FOLDERS: readonly ImageFolder[] = [
     "regions", "destinations", "hotels", "packages", "activities", "vehicles",
     "attractions", "cab-drivers", "blogs", "team-members", "landing-pages",
-    "payment-receipts",
+    "payment-receipts", "payment-proofs",
 ];
 
 /** Narrows the form field to a folder we accept, so no cast is needed below. */

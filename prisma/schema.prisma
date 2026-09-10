@@ -218,6 +218,19 @@ model Booking {
   convertedAt             DateTime?
   salesAgentId            String?
   salesAgentName          String?
+  /**
+   * The one-time "Booking Confirmed!" celebration popup, shown to the
+   * selling exec once and only once — set the moment they've seen and
+   * dismissed it (whether live, via the booking-won Ably event, or on
+   * their next page load if they weren't watching). Null means "not shown
+   * yet", checked alongside status = CONFIRMED.
+   */
+  celebrationSeenAt       DateTime?
+  /**
+   * Whether the exec said yes to the post-celebration "plan a party?" ask.
+   */
+  partyRequested          Boolean               @default(false)
+  partyAskedAt            DateTime?
   referredBy              String?
   referralSource          ReferralSource?
   opsAgentName            String?
@@ -650,29 +663,29 @@ model BookingTimeline {
 }
 
 model Payment {
-  id               String         @id @default(cuid())
-  bookingId        String
-  userId           String
-  amount           Decimal        @db.Decimal(10, 2)
-  currency         String         @default("INR")
-  gateway          PaymentGateway
-  method           PaymentMethod?
-  status           PaymentStatus  @default(PENDING)
-  gatewayOrderId   String?        @unique
-  gatewayPaymentId String?        @unique
-  gatewaySignature String?
-  refundId         String?
-  refundAmount     Decimal?       @db.Decimal(10, 2)
-  refundedAt       DateTime?
-  failureReason    String?
-  paidAt           DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  amount_paise     Int            @default(0)
-  idempotencyKey   String?        @unique
-  rawResponse      Json?
-  webhookEventId   String?
-  purpose          PaymentPurpose @default(INITIAL)
+  id                 String                    @id @default(cuid())
+  bookingId          String
+  userId             String
+  amount             Decimal                   @db.Decimal(10, 2)
+  currency           String                    @default("INR")
+  gateway            PaymentGateway
+  method             PaymentMethod?
+  status             PaymentStatus             @default(PENDING)
+  gatewayOrderId     String?                   @unique
+  gatewayPaymentId   String?                   @unique
+  gatewaySignature   String?
+  refundId           String?
+  refundAmount       Decimal?                  @db.Decimal(10, 2)
+  refundedAt         DateTime?
+  failureReason      String?
+  paidAt             DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  amount_paise       Int                       @default(0)
+  idempotencyKey     String?                   @unique
+  rawResponse        Json?
+  webhookEventId     String?
+  purpose            PaymentPurpose            @default(INITIAL)
 
   /// ── Money taken outside the gateway ──────────────────────────────────────
   /// Set only on gateway = OFFLINE rows: company UPI, bank transfer, cash.
@@ -680,25 +693,48 @@ model Payment {
   /// name of whoever entered it are the whole audit trail — hence both are
   /// required by recordOfflinePayment even though the columns are nullable
   /// (gateway rows have neither).
-  recordedById     String?
-  recordedByName   String?
-  receiptUrl       String?
-  notes            String?
+  recordedById       String?
+  recordedByName     String?
+  receiptUrl         String?
+  notes              String?
 
   /// ── Reversal ─────────────────────────────────────────────────────────────
   /// Voiding, never deleting. By the time an error is spotted the invoice
   /// number is spent, the receipt is in the client's inbox and ops may have
   /// acted — a deleted row leaves a hole in a GST sequence and no record of
   /// why. Applies to any gateway, not just OFFLINE.
-  voidedAt         DateTime?
-  voidedById       String?
-  voidedByName     String?
-  voidReason       String?
+  voidedAt           DateTime?
+  voidedById         String?
+  voidedByName       String?
+  voidReason         String?
 
-  booking          Booking        @relation(fields: [bookingId], references: [id])
-  user             User           @relation(fields: [userId], references: [id])
-  recordedBy       TeamMember?    @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
-  voidedBy         TeamMember?    @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
+  /// ── Manual GPay/UPI proof, and the review it goes through ────────────────
+  /// The other half of an OFFLINE row, arriving from the opposite direction:
+  /// the block above is ops RECORDING money they have already confirmed, this
+  /// is a sales exec SUBMITTING proof that still needs approving. Both sets of
+  /// columns are live and separately migrated, so they are kept side by side
+  /// rather than folded together — which of the two an OFFLINE row uses is
+  /// decided by the action that created it (recordOfflinePayment vs the manual
+  /// proof flow), and reconciling them into one shape is a deliberate change
+  /// for whoever owns both, not a merge resolution.
+  ///
+  /// proofKey is the R2 object key, kept alongside the public proofUrl the
+  /// same way ImagePicker stores both, in case the asset ever needs
+  /// deleting/re-signing.
+  proofUrl           String?
+  proofKey           String?
+  verificationStatus PaymentVerificationStatus @default(APPROVED)
+  rejectionReason    String?
+  submittedById      String?
+  submittedByName    String?
+  verifiedById       String?
+  verifiedByName     String?
+  verifiedAt         DateTime?
+
+  booking            Booking                   @relation(fields: [bookingId], references: [id])
+  user               User                      @relation(fields: [userId], references: [id])
+  recordedBy         TeamMember?               @relation("PaymentRecordedBy", fields: [recordedById], references: [id])
+  voidedBy           TeamMember?               @relation("PaymentVoidedBy", fields: [voidedById], references: [id])
 
   @@index([bookingId])
   @@index([userId])
@@ -835,7 +871,6 @@ model PartnerLeadRule {
   /**
    * The only destinations this agency may be given. Empty means no
    * restriction — every destination is fair game.
-   *
    * An allowlist rather than a blocklist: what we are willing to sell is a
    * short, deliberate list, while what we are not is everything else and
    * grows every time a destination is added to the catalogue.
@@ -883,14 +918,13 @@ model SalesTeam {
  * doesn't have to equal the sum of its members' so a manager isn't forced to
  * rebalance every individual target whenever the team number changes (or
  * someone joins/leaves mid-month).
- *
  * Both metrics are optional so a manager can set just a revenue goal, just a
  * conversion-count goal, or both. "Actual" is computed elsewhere (see
  * sales-team-analytics-actions.ts) from confirmed Bookings — this model only
  * holds the goal, not the outcome.
  */
 model SalesTarget {
-  id               String      @id @default(cuid())
+  id               String   @id @default(cuid())
   year             Int
   month            Int // 1–12
   teamMemberId     String?
@@ -899,11 +933,11 @@ model SalesTarget {
   conversionTarget Int?
   setById          String?
   setByName        String?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  teamMember       TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
-  salesTeam        SalesTeam?  @relation(fields: [salesTeamId], references: [id], onDelete: Cascade)
+  teamMember TeamMember? @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+  salesTeam  SalesTeam?  @relation(fields: [salesTeamId], references: [id], onDelete: Cascade)
 
   @@unique([teamMemberId, year, month])
   @@unique([salesTeamId, year, month])
@@ -2930,6 +2964,48 @@ enum LeadRequestStatus {
   REJECTED
 }
 
+/**
+ * A sales exec's ask to reopen a query they closed — reviewed rather than
+ * self-service (see reopenSalesQuery's removal in sales-query/actions.ts),
+ * so a closed/converted query never flips back open unreviewed. Mirrors
+ * LeadRequest's shape above field-for-field.
+ */
+model QueryReopenRequest {
+  id              String              @id @default(cuid())
+  queryId         String
+  requestedById   String
+  requestedByName String
+  /**
+   * Why the exec wants the query reopened — required at submit time.
+   */
+  reason          String
+  status          ReopenRequestStatus @default(PENDING)
+  /**
+   * Free text a reviewer adds while the request sits in the queue.
+   */
+  reviewNote      String?
+  /**
+   * Required when status is REJECTED — enforced in the action, not here.
+   */
+  rejectionReason String?
+  decidedAt       DateTime?
+  decidedById     String?
+  decidedByName   String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([queryId])
+  @@index([requestedById])
+  @@map("query_reopen_requests")
+}
+
+enum ReopenRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model custom_packages {
   id                      String                        @id @default(cuid())
   /**
@@ -4178,6 +4254,19 @@ enum PaymentPurpose {
   BALANCE
 }
 
+/**
+ * Review state for a manually-submitted (gateway = OFFLINE) payment — a sales
+ * exec's proof of a GPay/UPI payment received outside the app, pending ops
+ * sign-off before it counts toward the booking's paid amount. Gateway-driven
+ * payments (Razorpay etc.) are trusted via their webhook and default straight
+ * to APPROVED, so this field is meaningless for them.
+ */
+enum PaymentVerificationStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 enum TravellerType {
   ADULT
   CHILD
@@ -4264,6 +4353,11 @@ enum QuerySource {
   /// Click-to-WhatsApp leads from Google Ads, as distinct from WHATSAPP
   /// (Meta's WhatsApp Business API) above.
   WHATSAPP_GOOGLE
+  /// Organic search — as distinct from META/WHATSAPP_GOOGLE, which are paid.
+  SEO
+  /// Organic social (Instagram/Facebook posts, etc.) — as distinct from META,
+  /// which is paid social advertising.
+  SOCIAL_MEDIA
 }
 
 enum GallerySourceType {

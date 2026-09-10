@@ -138,7 +138,7 @@ export function CloseQueryDialog({ salesQueryId, leadName, closeReasons, childre
                     <div className="rounded-lg bg-destructive/5 border border-destructive/20 px-3 py-2.5">
                         <p className="text-xs text-destructive/80 leading-relaxed">
                             Closing this query will mark it as <strong>Closed</strong> and remove it from your active list.
-                            You can reopen it later if needed.
+                            To reopen it later, you'll need to request it and get it approved by a reviewer.
                         </p>
                     </div>
 

@@ -8,7 +8,7 @@ import AvatarName from "./components/dashboard/AvatarName";
 import { SalesTargetBadge } from "./components/dashboard/SalesTargetBadge";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { signOutEmployee } from "@/app/lib/auth-dashboard-actions";
-import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { getEffectiveMember, canUseViewAs } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
 import { computeVerificationCounts } from "@/app/services/verification-counts.service";
 import { resolveNavHref } from "./lib/rbac/nav-hrefs";
 import { Toaster } from "sonner";
@@ -72,6 +72,10 @@ export default async function DashboardLayout({
   // Sidebar and page-access enforcement use the EFFECTIVE member's permissions,
   // so when FSD views as another member they see that member's restricted nav.
   const isFullStackDev = realMember.teamRole?.name?.toLowerCase() === "full stack developer";
+  // Separate from isFullStackDev above — that one also bypasses page-access
+  // enforcement below, a much broader privilege than View As alone. Anyone
+  // in the VIEW_AS_EMAIL_ALLOWLIST gets the picker without that bypass.
+  const canViewAs = canUseViewAs(realMember.email, realMember.teamRole?.name);
   // FSD has no restrictions on their own nav — only while impersonating do
   // they see the effective (impersonated) member's restricted sidebar, as a
   // preview of what that member actually sees.
@@ -107,10 +111,10 @@ export default async function DashboardLayout({
   // the whole dashboard — every user hits this on every page load, right
   // after login redirects here. Same "swallow and log" contract as this
   // function's sibling, broadcastVerificationCounts().
-  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending, leadRequestsPending } =
+  const { hotelsPending, cabsPending, bookingsUnconfirmed, packagesPending, hotelRequestsPending, leadRequestsPending, reopenRequestsPending } =
     await computeVerificationCounts().catch((e) => {
       console.error("[dashboard layout] verification counts failed, defaulting to 0:", e);
-      return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0, leadRequestsPending: 0 };
+      return { hotelsPending: 0, cabsPending: 0, bookingsUnconfirmed: 0, packagesPending: 0, hotelRequestsPending: 0, leadRequestsPending: 0, reopenRequestsPending: 0 };
     });
 
   // Same "never take the dashboard down over a cosmetic badge" contract as
@@ -158,6 +162,7 @@ export default async function DashboardLayout({
           packagesPending={packagesPending}
           hotelRequestsPending={hotelRequestsPending}
           leadRequestsPending={leadRequestsPending}
+          reopenRequestsPending={reopenRequestsPending}
         />
       </div>
 
@@ -194,7 +199,7 @@ export default async function DashboardLayout({
                 email={session.user.email ?? "name@dreamsyatri.com"}
                 role={realMember.teamRole?.name ?? ""}
                 avatarSrc={realMember.profilePicUrl ?? undefined}
-                isFullStackDev={isFullStackDev}
+                canViewAs={canViewAs}
                 viewingAs={viewingAs}
               />
             </div>

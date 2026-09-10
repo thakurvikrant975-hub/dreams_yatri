@@ -22,10 +22,14 @@ export type ImageFolder =
   | "vehicles"
   | "attractions"
   | "cab-drivers"
-  /// Proof images for money taken outside the payment gateway. Not decorative
-  /// content like the rest of these: with no approval step behind an offline
-  /// payment, the receipt is the only evidence the payment happened.
-  | "payment-receipts";
+  /// Proof images for money taken outside the payment gateway. Two folders,
+  /// because the two offline-payment flows are separate (see Payment in
+  /// schema.prisma): "payment-receipts" is ops recording money already
+  /// confirmed, "payment-proofs" is a sales exec submitting a GPay screenshot
+  /// that still needs approving. Neither is decorative content like the rest
+  /// of these — the image is the evidence the payment happened.
+  | "payment-receipts"
+  | "payment-proofs";
 
 export type UploadResult = {
   key: string;

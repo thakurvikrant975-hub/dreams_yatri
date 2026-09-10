@@ -4,15 +4,19 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { Loader2, Target, Users, UserRound, Crown, UserX, CheckCircle2, History } from "lucide-react";
+import {
+  Loader2, Target, Users, UserRound, Crown, UserX, CheckCircle2, History,
+  IndianRupee, TrendingUp, CalendarRange,
+} from "lucide-react";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/app/components/ui/popover";
+import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 import { cn } from "@/app/lib/utils";
 import {
   setMemberTarget, setTeamTarget, getTargetHistory,
-  type SalesTargetsPageData, type MemberTargetRow, type TeamTargetRow, type TargetHistoryEntry,
+  type SalesTargetsPageData, type MemberTargetRow, type TeamTargetRow, type TargetHistoryEntry, type AchievedValues,
 } from "./actions";
 
 const MONTHS = [
@@ -26,6 +30,58 @@ function num(v: string): number | null {
 }
 
 const fmtInr = (n: number | null) => n === null ? "—" : `₹${n.toLocaleString("en-IN")}`;
+
+/** Attainment as a 0-100+ percentage against a target, or null when there's
+ * nothing to measure against — callers decide whether "no target set" reads
+ * as a dash or as an unbounded bar. */
+function pctOf(achieved: number, target: number | null): number | null {
+  if (target === null || target <= 0) return null;
+  return Math.round((achieved / target) * 100);
+}
+
+/** Tone follows attainment: on/over target reads as success, under half reads
+ * as a caution, everything between is the neutral brand color — the same
+ * three-tier read the rest of the dashboard's progress bars use. */
+function barTone(pct: number) {
+  if (pct >= 100) return "bg-dashboard-success";
+  if (pct < 50) return "bg-dashboard-warning";
+  return "bg-dashboard-primary";
+}
+
+function MiniBar({ pct }: { pct: number }) {
+  return (
+    <span className="w-14 h-1.5 rounded-full bg-dashboard-base-300 overflow-hidden shrink-0">
+      <span className={cn("block h-full rounded-full transition-all", barTone(pct))} style={{ width: `${Math.min(100, pct)}%` }} />
+    </span>
+  );
+}
+
+/** The "achieved vs target" line shown under every subject's name — the
+ * whole reason this page grew beyond a form: a manager setting next month's
+ * number needs this month's actual bookings and revenue right next to it. */
+function AchievedLine({ achieved, target, compact }: { achieved: AchievedValues; target: TargetValuesLike; compact?: boolean }) {
+  const revenuePct = pctOf(achieved.revenue, target.revenueTarget);
+  const bookingPct = pctOf(achieved.bookings, target.conversionTarget);
+  return (
+    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", compact ? "text-[11px]" : "text-xs")}>
+      <span className="flex items-center gap-1.5 text-dashboard-base-content/60">
+        <IndianRupee className="size-3 shrink-0" />
+        <span className="font-medium text-dashboard-base-content">{fmtInr(achieved.revenue)}</span>
+        {target.revenueTarget !== null && <span>of {fmtInr(target.revenueTarget)}</span>}
+        {revenuePct !== null && <MiniBar pct={revenuePct} />}
+      </span>
+      <span className="flex items-center gap-1.5 text-dashboard-base-content/60">
+        <CheckCircle2 className="size-3 shrink-0" />
+        <span className="font-medium text-dashboard-base-content">{achieved.bookings}</span>
+        {target.conversionTarget !== null && <span>of {target.conversionTarget} bookings</span>}
+        {target.conversionTarget === null && <span>bookings</span>}
+        {bookingPct !== null && <MiniBar pct={bookingPct} />}
+      </span>
+    </div>
+  );
+}
+
+type TargetValuesLike = { revenueTarget: number | null; conversionTarget: number | null };
 
 /** One change to one row's target, e.g. "Bookings target 12 → 16" — the
  * example that prompted this whole timeline. Two separate lines when both
@@ -118,12 +174,13 @@ function HistoryButton({ subjectId, year, month, refreshKey }: { subjectId: stri
  * AutoAssignSettingsDialog's MemberRow: responsive typing, no save on every
  * keystroke. */
 function TargetRow({
-  icon: Icon, title, subtitle, target, onSave, indent, subjectId, year, month,
+  icon: Icon, title, subtitle, target, achieved, onSave, indent, subjectId, year, month,
 }: {
   icon: React.ElementType;
   title: string;
   subtitle?: string;
   target: { revenueTarget: number | null; conversionTarget: number | null };
+  achieved: AchievedValues;
   onSave: (values: { revenueTarget: number | null; conversionTarget: number | null }) => Promise<{ success: boolean; error?: string }>;
   /** Nested under a team's own row — smaller icon, indented, no bottom
    * border of its own so a run of execs reads as one group under the team
@@ -138,14 +195,17 @@ function TargetRow({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState(0);
   const [historyKey, setHistoryKey] = useState(0);
+  const [liveTarget, setLiveTarget] = useState(target);
 
   async function save() {
     setSaving(true);
-    const result = await onSave({ revenueTarget: num(revenue), conversionTarget: num(conversions) });
+    const values = { revenueTarget: num(revenue), conversionTarget: num(conversions) };
+    const result = await onSave(values);
     setSaving(false);
     if (result.success) {
       setSavedAt(Date.now());
       setHistoryKey((k) => k + 1);
+      setLiveTarget(values);
     } else {
       toast.error(result.error ?? "Failed to save target");
     }
@@ -153,21 +213,24 @@ function TargetRow({
 
   return (
     <div className={cn(
-      "flex items-center gap-3 px-4 py-2.5 border-b border-dashboard-base-300 last:border-b-0",
+      "flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3 border-b border-dashboard-base-300 last:border-b-0",
       indent && "pl-10 bg-dashboard-base-200/20",
     )}>
       <span className={cn(
-        "shrink-0 flex items-center justify-center rounded-full bg-dashboard-primary/10 text-dashboard-primary",
+        "shrink-0 flex items-center justify-center rounded-full bg-dashboard-primary/10 text-dashboard-primary mt-0.5",
         indent ? "size-6" : "size-8",
       )}>
         <Icon className={indent ? "size-3.5" : "size-4"} />
       </span>
-      <div className="flex-1 min-w-0">
-        <p className={cn("font-medium text-dashboard-base-content truncate", indent ? "text-xs" : "text-sm")}>{title}</p>
-        {subtitle && <p className="text-xs text-dashboard-base-content/50 truncate">{subtitle}</p>}
+      <div className="flex-1 min-w-48 space-y-1">
+        <div className="flex items-baseline gap-2">
+          <p className={cn("font-medium text-dashboard-base-content truncate", indent ? "text-xs" : "text-sm")}>{title}</p>
+          {subtitle && <p className="text-xs text-dashboard-base-content/50 truncate">{subtitle}</p>}
+        </div>
+        <AchievedLine achieved={achieved} target={liveTarget} compact={indent} />
       </div>
       <label className="shrink-0 flex flex-col items-center gap-0.5">
-        <span className="text-[9px] text-dashboard-base-content/45 uppercase tracking-wide">Revenue ₹</span>
+        <span className="text-[9px] text-dashboard-base-content/45 uppercase tracking-wide">Revenue Target ₹</span>
         <Input
           type="number" min={0} inputMode="numeric"
           value={revenue}
@@ -178,7 +241,7 @@ function TargetRow({
         />
       </label>
       <label className="shrink-0 flex flex-col items-center gap-0.5">
-        <span className="text-[9px] text-dashboard-base-content/45 uppercase tracking-wide">Bookings</span>
+        <span className="text-[9px] text-dashboard-base-content/45 uppercase tracking-wide">Bookings Target</span>
         <Input
           type="number" min={0} inputMode="numeric"
           value={conversions}
@@ -188,12 +251,14 @@ function TargetRow({
           className="h-8 w-20 text-xs text-center px-2"
         />
       </label>
-      <div className="shrink-0 w-4 flex items-center justify-center">
+      <div className="shrink-0 w-4 flex items-center justify-center self-center">
         {saving
           ? <Loader2 className="size-3.5 animate-spin text-dashboard-base-content/40" />
           : savedAt > 0 && <CheckCircle2 className="size-3.5 text-dashboard-success" />}
       </div>
-      <HistoryButton subjectId={subjectId} year={year} month={month} refreshKey={historyKey} />
+      <div className="shrink-0 self-center">
+        <HistoryButton subjectId={subjectId} year={year} month={month} refreshKey={historyKey} />
+      </div>
     </div>
   );
 }
@@ -214,9 +279,11 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
  * (leader included) nested right below it — the "team wise" grouping the
  * flat list used to lose. */
 function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; month: number }) {
+  const revenuePct = pctOf(team.achieved.revenue, team.target.revenueTarget);
+  const bookingPct = pctOf(team.achieved.bookings, team.target.conversionTarget);
   return (
     <div className="rounded-xl overflow-hidden bg-dashboard-base-100 border border-dashboard-base-300">
-      <div className="flex items-center gap-2 px-4 py-3 text-dashboard-neutral-content bg-dashboard-neutral">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3 text-dashboard-neutral-content bg-dashboard-neutral">
         <Users className="size-4" />
         <p className="text-sm font-semibold">{team.name}</p>
         {team.leaderName && (
@@ -229,10 +296,21 @@ function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; m
         </span>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2 bg-dashboard-base-200/40 border-b border-dashboard-base-300">
+        <AchievedLine achieved={team.achieved} target={team.target} />
+        {(revenuePct !== null || bookingPct !== null) && (
+          <div className="flex items-center gap-3 text-[11px] text-dashboard-base-content/50">
+            {bookingPct !== null && <span>Bookings {bookingPct}%</span>}
+            {revenuePct !== null && <span>Revenue {revenuePct}%</span>}
+          </div>
+        )}
+      </div>
+
       <TargetRow
         icon={Users}
         title="Team target"
         target={team.target}
+        achieved={team.achieved}
         onSave={(values) => setTeamTarget(team.id, { year, month, ...values })}
         subjectId={team.id}
         year={year}
@@ -249,6 +327,7 @@ function TeamGroup({ team, year, month }: { team: TeamTargetRow; year: number; m
             title={m.name}
             subtitle={`${m.employeeId}${m.roleName ? ` · ${m.roleName}` : ""}`}
             target={m.target}
+            achieved={m.achieved}
             onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
             subjectId={m.id}
             year={year}
@@ -273,32 +352,71 @@ export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
   }
 
   const years = Array.from({ length: 5 }, (_, i) => data.year - 2 + i);
+  const isCurrentMonth = year === data.year && month === data.month;
+  const { target: companyTarget, achieved: companyAchieved } = data.companyTotals;
+  const revenuePct = pctOf(companyAchieved.revenue, companyTarget.revenueTarget);
+  const bookingPct = pctOf(companyAchieved.bookings, companyTarget.conversionTarget);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Label className="text-xs text-dashboard-base-content/60">Setting targets for</Label>
-        <Select value={String(month)} onValueChange={(v) => changeMonth(year, Number(v))}>
-          <SelectTrigger className="h-9 w-40 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {MONTHS.map((m, i) => (
-              <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={String(year)} onValueChange={(v) => changeMonth(Number(v), month)}>
-          <SelectTrigger className="h-9 w-24 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {years.map((y) => (
-              <SelectItem key={y} value={String(y)}>{y}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <CalendarRange className="size-4 text-dashboard-base-content/45" />
+          <Label className="text-xs text-dashboard-base-content/60">Viewing</Label>
+          <Select value={String(month)} onValueChange={(v) => changeMonth(year, Number(v))}>
+            <SelectTrigger className="h-9 w-40 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MONTHS.map((m, i) => (
+                <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(year)} onValueChange={(v) => changeMonth(Number(v), month)}>
+            <SelectTrigger className="h-9 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {years.map((y) => (
+                <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {!isCurrentMonth && (
+          <span className="text-xs text-dashboard-base-content/45">
+            Showing targets and actuals for {MONTHS[month - 1]} {year}
+          </span>
+        )}
       </div>
+
+      <StatGrid cols={4}>
+        <StatCard
+          label="Revenue Target"
+          value={fmtInr(companyTarget.revenueTarget)}
+          sub="Sum of every team's + unassigned member's target"
+          icon={Target}
+        />
+        <StatCard
+          label="Revenue Achieved"
+          value={fmtInr(companyAchieved.revenue)}
+          icon={IndianRupee}
+          trend={revenuePct !== null ? { value: `${revenuePct}%`, positive: revenuePct >= 100 } : undefined}
+        />
+        <StatCard
+          label="Bookings Target"
+          value={companyTarget.conversionTarget ?? "—"}
+          sub="Confirmed bookings expected"
+          icon={CheckCircle2}
+        />
+        <StatCard
+          label="Bookings Achieved"
+          value={companyAchieved.bookings}
+          icon={TrendingUp}
+          trend={bookingPct !== null ? { value: `${bookingPct}%`, positive: bookingPct >= 100 } : undefined}
+        />
+      </StatGrid>
 
       {data.teams.length === 0 ? (
         <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 px-4 py-8 text-center text-sm text-dashboard-base-content/45">
@@ -321,6 +439,7 @@ export function SalesTargetsClient({ data }: { data: SalesTargetsPageData }) {
               title={m.name}
               subtitle={`${m.employeeId}${m.roleName ? ` · ${m.roleName}` : ""}`}
               target={m.target}
+              achieved={m.achieved}
               onSave={(values) => setMemberTarget(m.id, { year, month, ...values })}
               subjectId={m.id}
               year={year}

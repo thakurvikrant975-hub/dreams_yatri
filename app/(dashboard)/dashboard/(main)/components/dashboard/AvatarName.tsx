@@ -16,7 +16,7 @@ interface AvatarNameProps {
   role?: string
   email?: string
   avatarSrc?: string
-  isFullStackDev?: boolean
+  canViewAs?: boolean
   viewingAs?: { id: string; name: string; roleName?: string } | null
 }
 
@@ -25,7 +25,7 @@ const AvatarName = ({
   role = "Marketing head",
   email = "mayank@dreamsyatri.com",
   avatarSrc,
-  isFullStackDev = false,
+  canViewAs = false,
   viewingAs = null,
 }: AvatarNameProps) => {
   const [open, setOpen]           = useState(false)
@@ -169,7 +169,7 @@ const AvatarName = ({
             ))}
 
             {/* View As — only for FSD when NOT already impersonating */}
-            {isFullStackDev && !viewingAs && (
+            {canViewAs && !viewingAs && (
               <button
                 onClick={handleViewAs}
                 className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm text-foreground hover:bg-accent transition-colors duration-100"
@@ -207,7 +207,7 @@ const AvatarName = ({
       </div>
 
       {/* Member picker dialog — rendered outside the dropdown div */}
-      {isFullStackDev && (
+      {canViewAs && (
         <ViewAsMemberPicker
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}

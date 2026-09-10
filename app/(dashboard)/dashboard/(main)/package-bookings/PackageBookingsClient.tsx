@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { BookCheck, CalendarClock, CircleCheck, CircleX, ClipboardList, IndianRupee } from "lucide-react";
+import { BookCheck, CalendarClock, CircleCheck, CircleX, ClipboardList, IndianRupee, Receipt } from "lucide-react";
 import type { Prisma } from "@/app/generated/prisma";
 import { db } from "@/app/lib/db";
 import { getEffectiveMember } from "../lib/get-current-member";
@@ -12,6 +12,7 @@ import {
 } from "../components/ui/breadcrumb";
 import { Skeleton } from "../components/ui/skeleton";
 import { PageHeader } from "../components/dashboard/PageHeader";
+import { NewBookingRequestDialog } from "./NewBookingRequestDialog";
 import { StatCard, StatGrid } from "../components/dashboard/Statcard";
 
 const PAYMENT_STATUSES = [
@@ -95,12 +96,15 @@ async function BookingsData({
             : {}),
     };
 
-    const [total, upcoming, pendingReview, confirmed, cancelled, revenue, bookings] = await Promise.all([
+    const [total, upcoming, pendingReview, confirmed, cancelled, proofPending, revenue, bookings] = await Promise.all([
         db.booking.count({ where: mine }),
         db.booking.count({ where: { ...mine, status: "UPCOMING" } }),
         db.booking.count({ where: { ...mine, status: "PENDING_REVIEW" } }),
         db.booking.count({ where: { ...mine, status: "CONFIRMED" } }),
         db.booking.count({ where: { ...mine, status: "CANCELLED" } }),
+        // Manually-submitted GPay/UPI proofs awaiting ops sign-off — see
+        // payment-proof.actions.ts.
+        db.booking.count({ where: { ...mine, payments: { some: { verificationStatus: "PENDING_REVIEW" } } } }),
         db.booking.aggregate({
             where: { ...mine, status: { not: "CANCELLED" } },
             _sum: { totalAmount_paise: true },
@@ -146,17 +150,22 @@ async function BookingsData({
                         // What was actually sent to the client. Booking.packageId
                         // points at the catalogue and is null for these, so
                         // without this every sales booking read "—" where its
-                        // name should be.
+                        // name should be. ACCEPTED is the package the exec
+                        // actually pinned this booking to (see requestBooking
+                        // in payment-proof.actions.ts) — preferred over a
+                        // merely-SENT one so a query that had several options
+                        // shows the one that actually won, not a guess.
                         custom_packages: {
-                            where: { status: "SENT" },
-                            select: { title: true },
+                            where: { status: { in: ["ACCEPTED", "SENT"] } },
+                            select: { title: true, status: true },
                             orderBy: { sentAt: "desc" },
-                            take: 1,
+                            take: 5,
                         },
                     },
                 },
                 packageUrl: true,
                 hotelBookings: { take: 1, select: { hotel: { select: { name: true, city: true } } } },
+                payments: { where: { verificationStatus: "PENDING_REVIEW" }, select: { id: true }, take: 1 },
             },
         }),
     ]);
@@ -164,12 +173,30 @@ async function BookingsData({
     const filteredTotal = await db.booking.count({ where });
     const totalPages = Math.max(1, Math.ceil(filteredTotal / limit));
 
+    const rows = bookings.map((b) => ({
+        ...b,
+        hasPendingProof: b.payments.length > 0,
+        sourceQuery: b.sourceQuery && {
+            ...b.sourceQuery,
+            custom_packages: [...b.sourceQuery.custom_packages].sort(
+                (x, y) => (x.status === "ACCEPTED" ? -1 : 0) - (y.status === "ACCEPTED" ? -1 : 0),
+            ),
+        },
+    }));
+
     return (
         <>
-            <StatGrid cols={6}>
+            <StatGrid cols={7}>
                 <StatCard label="Total Bookings" value={total}         icon={BookCheck}     />
                 <StatCard label="Upcoming"        value={upcoming}      icon={CalendarClock} />
                 <StatCard label="Pending Review"  value={pendingReview} icon={ClipboardList} />
+                <StatCard
+                    label="Proof Pending"
+                    value={proofPending}
+                    icon={Receipt}
+                    muted={proofPending === 0}
+                    iconText={proofPending > 0 ? "text-dashboard-warning" : undefined}
+                />
                 <StatCard label="Confirmed"       value={confirmed}     icon={CircleCheck}   />
                 <StatCard label="Cancelled"       value={cancelled}     icon={CircleX}       />
                 <StatCard
@@ -181,7 +208,7 @@ async function BookingsData({
             </StatGrid>
 
             <PackageBookingsTable
-                bookings={bookings}
+                bookings={rows}
                 currentPage={page}
                 totalPages={totalPages}
                 totalCount={filteredTotal}
@@ -221,6 +248,7 @@ export default function PackageBookingsClient({
                 title="Package Bookings"
                 description="Manage and review all package booking orders"
                 icon={BookCheck}
+                actions={<NewBookingRequestDialog />}
             />
 
             <Suspense
