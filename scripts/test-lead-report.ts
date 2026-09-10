@@ -12,9 +12,18 @@
 import {
   summariseHandovers,
   summariseByExec,
-  groupSizeBand,
+  summariseBy,
+  tallyLeads,
+  filterExecLeads,
+  isGroup,
+  destinationLabel,
+  execReportTitle,
+  describeExecFilters,
+  GROUP_MIN_PERSONS,
+  NO_FILTERS,
   type AssignedLead,
   type ExecLead,
+  type ExecReportFilters,
 } from "../app/(dashboard)/dashboard/(main)/actions/leadReportTotals";
 
 let failures = 0;
@@ -117,40 +126,80 @@ console.log("\nEdges:");
   check("ranked by count, then name", t.byAssignee.inHouse.map((r) => r.name), ["Amit", "Bela", "Zara"]);
 }
 
-// ── Per-exec breakdown (the Excel download) ──────────────────────────────
+// ── Exec report (the filterable PDF) ─────────────────────────────────────
 const execLead = (over: Partial<ExecLead> = {}): ExecLead => ({
   assignedTo: "exec-priya", assignedToName: "Priya", isPartnerAgency: false,
   status: "ASSIGNED", groupSize: 2, destination: "Goa", channel: "Google",
   ...over,
 });
 
-console.log("\nGroup-size bands:");
-check(
-  "band edges",
-  [1, 2, 3, 5, 6, 10, 11, 40].map(groupSizeBand),
-  ["1-2", "1-2", "3-5", "3-5", "6-10", "6-10", "11+", "11+"],
-);
-check("no size, zero or negative is not given", [null, 0, -3].map(groupSizeBand), [null, null, null]);
+console.log("\nWhat counts as a group:");
+check("above 5 persons is a group", [5, 6, 7, 40].map(isGroup), [false, true, true, true]);
+check("no size, zero or negative is not", [null, 0, -8].map(isGroup), [false, false, false]);
 
 console.log("\nOne exec's breakdown:");
 {
   const [r] = summariseByExec([
     execLead({ groupSize: 2, status: "CONVERTED" }),
-    execLead({ groupSize: 4, status: "PAYMENT_INITIATED", destination: "goa " }),
+    execLead({ groupSize: 6, status: "PAYMENT_INITIATED", destination: "goa " }),
     execLead({ groupSize: 12, status: "CLIENT_DECLINED", destination: "Kerala", channel: "Meta" }),
     execLead({ groupSize: null, status: "FOLLOW_UP", destination: null, channel: "Meta" }),
     execLead({ groupSize: 0, status: "CLOSED", destination: "Kerala" }),
   ]);
-  check("groups", r.groups, 5);
-  check("pax counts only sized groups", r.pax, 18);
-  check("bands", r.bands, { "1-2": 1, "3-5": 1, "6-10": 0, "11+": 1 });
+  check("leads", r.leads, 5);
+  check("groups are the 6+ parties", r.groups, 2);
+  check("persons counts only leads that gave a size", r.persons, 20);
   check("size not given", r.sizeNotGiven, 2);
-  check("bands + not given = groups", Object.values(r.bands).reduce((s, n) => s + n, 0) + r.sizeNotGiven, r.groups);
   check("outcomes", [r.open, r.converted, r.lost], [1, 2, 2]);
+  check("outcomes add up to leads", r.open + r.converted + r.lost, r.leads);
   check("conversion rate", r.convRate, 40);
   check("destinations merged case-insensitively", r.byDestination, { Goa: 2, Kerala: 2, "Not specified": 1 });
   check("sources", r.byChannel, { Google: 3, Meta: 2 });
 }
+
+console.log("\nFilters:");
+{
+  const leads: ExecLead[] = [
+    execLead({ groupSize: 8, destination: "Goa", channel: "Google", status: "CONVERTED" }),
+    execLead({ groupSize: 3, destination: "goa", channel: "Meta" }),
+    execLead({ assignedTo: "exec-rahul", assignedToName: "Rahul", groupSize: 6, destination: "Kerala", channel: "Meta", status: "CLOSED" }),
+    execLead({ assignedTo: "exec-rahul", assignedToName: "Rahul", groupSize: null, destination: "Kerala" }),
+    execLead({ assignedTo: AGENCY_A, assignedToName: "Skyline Travels", isPartnerAgency: true, groupSize: 10 }),
+  ];
+  const run = (f: Partial<ExecReportFilters>) => filterExecLeads(leads, { ...NO_FILTERS, ...f }).length;
+  check("no filters keeps everything", run({}), 5);
+  check("one exec", run({ assignee: "exec:exec-rahul" }), 2);
+  check("our execs only", run({ assignee: "inhouse" }), 4);
+  check("agencies only", run({ assignee: "partners" }), 1);
+  check("destination matches however it was typed", run({ destination: "Goa" }), 3);
+  check("source", run({ source: "Meta" }), 2);
+  check("outcome", [run({ outcome: "converted" }), run({ outcome: "lost" }), run({ outcome: "open" })], [1, 1, 3]);
+  check("min persons 6 is the group report", run({ minPersons: GROUP_MIN_PERSONS }), 3);
+  check("min persons leaves out leads with no size", run({ minPersons: 1 }), 4);
+  check("min persons 0 means any", run({ minPersons: 0 }), 5);
+  check("filters combine", run({ assignee: "inhouse", minPersons: 6, source: "Meta" }), 1);
+  check(
+    "filtered tally",
+    tallyLeads(filterExecLeads(leads, { ...NO_FILTERS, minPersons: 6 })),
+    { leads: 3, groups: 3, persons: 24, sizeNotGiven: 0, open: 1, converted: 1, lost: 1, convRate: 33 },
+  );
+  check(
+    "by destination",
+    summariseBy(leads, (q) => destinationLabel(q.destination)).map((r) => [r.name, r.leads, r.groups]),
+    [["Goa", 3, 2], ["Kerala", 2, 1]],
+  );
+}
+
+console.log("\nReport title and filter line:");
+check("default", execReportTitle(NO_FILTERS), "Leads per Executive");
+check("groups", execReportTitle({ ...NO_FILTERS, minPersons: 6 }), "Group Leads per Executive");
+check("one exec wins over groups", execReportTitle({ ...NO_FILTERS, assignee: "exec:x", minPersons: 6 }, "Priya"), "Lead Report: Priya");
+check("nothing filtered, nothing listed", describeExecFilters(NO_FILTERS), []);
+check(
+  "every filter named",
+  describeExecFilters({ assignee: "partners", destination: "Goa", source: "Meta", outcome: "lost", minPersons: 6 }),
+  ["Partner agencies only", "Destination: Goa", "Source: Meta", "Outcome: Lost", "6+ persons (leads with no size given left out)"],
+);
 
 console.log("\nRows across execs:");
 {
@@ -163,8 +212,8 @@ console.log("\nRows across execs:");
     execLead({ assignedTo: AGENCY_A, assignedToName: "Skyline Travels", isPartnerAgency: true }),
     execLead({ assignedTo: "exec-new", assignedToName: "  " }),
   ]);
-  check("two execs named Rahul stay two rows", rows.filter((r) => r.name === "Rahul").map((r) => r.groups), [2, 1]);
-  check("rows sum to every handover", rows.reduce((s, r) => s + r.groups, 0), 7);
+  check("two execs named Rahul stay two rows", rows.filter((r) => r.name === "Rahul").map((r) => r.leads), [2, 1]);
+  check("rows sum to every handover", rows.reduce((s, r) => s + r.leads, 0), 7);
   check("our execs first, agencies last", rows.map((r) => r.name), ["Rahul", "Rahul", "Unnamed", "Skyline Travels"]);
   check("empty range", summariseByExec([]), []);
 }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   Users, MapPin, PieChart as PieChartIcon, TrendingUp, Download, Phone, CalendarClock,
-  UserCheck, Handshake, FileSpreadsheet,
+  UserCheck, Handshake, FileText,
 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { istDayOffset } from "../../lead-report/ist";
@@ -15,6 +15,7 @@ import { TrendAreaChart } from "./charts/TrendAreaChart";
 import { BreakdownPieChart } from "./charts/BreakdownPieChart";
 import { RankedBarChart } from "./charts/RankedBarChart";
 import { DataTable, type ColumnDef } from "./Datatable";
+import { ExecReportPanel } from "./ExecReportPanel";
 import type { AssigneeRow, LeadManagerAnalyticsData, LeadRow } from "../../actions/lead-manager-analytics-actions";
 
 type Props = {
@@ -133,7 +134,6 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [downloading, setDownloading] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(25);
 
@@ -177,21 +177,6 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
     }
   }
 
-  // Loaded on click, like the PDF: the spreadsheet library is large and most
-  // visits to this page never download anything.
-  async function handleDownloadExecXlsx() {
-    setExporting(true);
-    try {
-      const [{ buildExecLeadsWorkbook }, XLSX] = await Promise.all([import("./execLeadsXlsx"), import("xlsx")]);
-      const wb = buildExecLeadsWorkbook(data, { generatedByName });
-      XLSX.writeFile(wb, `leads-per-exec-${from}_to_${to}.xlsx`);
-    } catch (e) {
-      console.error(e);
-      toast.error("Could not generate the Excel report. Please try again.");
-    } finally {
-      setExporting(false);
-    }
-  }
 
   const agencyTag = (r: LeadRow) =>
     r.isPartnerAgency ? (
@@ -284,16 +269,6 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
           >
             <Download className="h-3.5 w-3.5" />
             {downloading ? "Generating…" : "Download Report (PDF)"}
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadExecXlsx}
-            disabled={exporting || data.reportRows.length === 0}
-            title={data.reportRows.length === 0 ? "Nothing was assigned in this range" : "Groups per executive, by size, destination and source"}
-            className="inline-flex items-center gap-1.5 rounded-md border border-dashboard-primary px-3 py-2 text-xs font-semibold text-dashboard-primary hover:bg-dashboard-primary/10 transition-colors disabled:opacity-60 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5" />
-            {exporting ? "Generating…" : "Exec Report (Excel)"}
           </button>
         </div>
       </div>
@@ -427,6 +402,18 @@ export function LeadManagerAnalytics({ data, from, to, generatedByName }: Props)
           empty="No leads were sold on in this range."
         />
       </div>
+
+      {/* ── Exec report ───────────────────────────────────────────────────
+          The same handovers, filtered down to the report the lead manager
+          needs — one exec, groups only, one destination — and downloaded as
+          a PDF. */}
+      <DashCard>
+        <DashCardHeader>
+          <FileText className="h-4 w-4" />
+          <p className="text-sm font-semibold">Exec report — {rangeLabel}</p>
+        </DashCardHeader>
+        <ExecReportPanel rows={data.reportRows} from={from} to={to} generatedByName={generatedByName} />
+      </DashCard>
 
       {/* ── Full report ───────────────────────────────────────────────────── */}
       <DashCard>

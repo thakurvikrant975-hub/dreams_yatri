@@ -89,32 +89,38 @@ export function summariseHandovers(
   };
 }
 
-// ── Per-exec breakdown ──────────────────────────────────────────────────
+// ── Exec report ─────────────────────────────────────────────────────────
 //
-// What kind of leads each assignee was handed, for the lead manager's Excel
-// download. Same population as everything above — handovers in range — so
-// the rows add back up to `handedOverInRange`, and so do each row's bands,
-// outcomes, destinations and sources to that row's own `groups`.
+// What kind of leads each assignee was handed, for the lead manager's
+// filterable PDF. Same population as everything above — handovers in range —
+// narrowed by whatever filters are set, so with none set every figure adds
+// back up to `handedOverInRange`.
 
-/** Travellers per lead, bucketed. A lead is one travelling group, so these
- * describe what kind of groups an exec is being given rather than how many. */
-export const GROUP_SIZE_BANDS = [
-  { key: "1-2", label: "1–2 pax", max: 2 },
-  { key: "3-5", label: "3–5 pax", max: 5 },
-  { key: "6-10", label: "6–10 pax", max: 10 },
-  { key: "11+", label: "11+ pax", max: Infinity },
-] as const;
-export type GroupSizeBand = (typeof GROUP_SIZE_BANDS)[number]["key"];
+/** A lead counts as a group from this many persons up — "above 5", as the
+ * sales team uses the word. Smaller parties are still leads, just not groups. */
+export const GROUP_MIN_PERSONS = 6;
 
-/** Null when the lead never said — counted as "not given" rather than being
- * guessed into a band. Zero or negative is a typo, not a group. */
-export function groupSizeBand(size: number | null): GroupSizeBand | null {
-  if (size == null || !Number.isFinite(size) || size < 1) return null;
-  return GROUP_SIZE_BANDS.find((b) => size <= b.max)!.key;
+/** Only a lead that states its size can be called a group. Zero or negative
+ * is a typo, not a party. */
+export function isGroup(size: number | null): boolean {
+  return size != null && Number.isFinite(size) && size >= GROUP_MIN_PERSONS;
+}
+
+/** A size worth adding up — null, zero and negatives are "not given". */
+function knownSize(size: number | null): number | null {
+  return size != null && Number.isFinite(size) && size >= 1 ? size : null;
 }
 
 /** Closed without a sale. Everything neither won nor lost is still open. */
 const LOST_STATUSES = ["REJECTED", "CLIENT_DECLINED", "CLOSED"];
+
+export type LeadOutcome = "open" | "converted" | "lost";
+
+export function leadOutcome(status: string): LeadOutcome {
+  if (CONVERTED_STATUSES.includes(status)) return "converted";
+  if (LOST_STATUSES.includes(status)) return "lost";
+  return "open";
+}
 
 /** `destination` is free text on the query, so "Goa" and "goa " are one
  * place — the same case-insensitive grouping the rest of the report uses. */
@@ -134,30 +140,119 @@ export type ExecLead = {
   channel: string;
 };
 
-export type ExecBreakdownRow = {
+// ── Filters ──
+
+/** Who the report is about: everyone, one side of the in-house/agency split,
+ * or one assignee (`exec:<id>`). */
+export type AssigneeFilter = "all" | "inhouse" | "partners" | `exec:${string}`;
+
+export type ExecReportFilters = {
+  assignee: AssigneeFilter;
+  /** A destinationLabel, or null for every destination. */
+  destination: string | null;
+  /** A resolved channel, or null for every source. */
+  source: string | null;
+  outcome: LeadOutcome | null;
+  /** Leads with at least this many persons. A lead that never gave a size
+   * cannot be shown to meet it, so any value here leaves those out. */
+  minPersons: number | null;
+};
+
+export const NO_FILTERS: ExecReportFilters = {
+  assignee: "all", destination: null, source: null, outcome: null, minPersons: null,
+};
+
+export function filterExecLeads<T extends ExecLead>(leads: T[], f: ExecReportFilters): T[] {
+  const min = f.minPersons != null && f.minPersons > 0 ? f.minPersons : null;
+  return leads.filter((q) => {
+    if (f.assignee === "inhouse" && q.isPartnerAgency) return false;
+    if (f.assignee === "partners" && !q.isPartnerAgency) return false;
+    if (f.assignee.startsWith("exec:") && q.assignedTo !== f.assignee.slice(5)) return false;
+    if (f.destination != null && destinationLabel(q.destination) !== f.destination) return false;
+    if (f.source != null && q.channel !== f.source) return false;
+    if (f.outcome != null && leadOutcome(q.status) !== f.outcome) return false;
+    if (min != null && (knownSize(q.groupSize) ?? 0) < min) return false;
+    return true;
+  });
+}
+
+const OUTCOME_LABEL: Record<LeadOutcome, string> = { open: "Open", converted: "Converted", lost: "Lost" };
+
+/** What the filters make the report about — its heading, on the page and on
+ * the PDF alike. */
+export function execReportTitle(f: ExecReportFilters, assigneeName?: string): string {
+  if (f.assignee.startsWith("exec:")) return `Lead Report: ${assigneeName ?? "Executive"}`;
+  if (f.minPersons != null && f.minPersons >= GROUP_MIN_PERSONS) return "Group Leads per Executive";
+  return "Leads per Executive";
+}
+
+/** The filters in force, one phrase each — printed under the heading so a
+ * forwarded copy says what it left out. Empty when nothing is filtered. */
+export function describeExecFilters(f: ExecReportFilters, assigneeName?: string): string[] {
+  const out: string[] = [];
+  if (f.assignee === "inhouse") out.push("Our execs only");
+  else if (f.assignee === "partners") out.push("Partner agencies only");
+  else if (f.assignee.startsWith("exec:")) out.push(`Assigned to ${assigneeName ?? "one executive"}`);
+  if (f.destination) out.push(`Destination: ${f.destination}`);
+  if (f.source) out.push(`Source: ${f.source}`);
+  if (f.outcome) out.push(`Outcome: ${OUTCOME_LABEL[f.outcome]}`);
+  if (f.minPersons != null && f.minPersons > 0) out.push(`${f.minPersons}+ persons (leads with no size given left out)`);
+  return out;
+}
+
+// ── Tallies ──
+
+export type LeadTally = {
+  leads: number;
+  /** Of those, parties of GROUP_MIN_PERSONS or more. */
+  groups: number;
+  /** Persons across the leads that gave a size. */
+  persons: number;
+  sizeNotGiven: number;
+  open: number;
+  converted: number;
+  lost: number;
+  convRate: number;
+};
+
+function emptyTally(): LeadTally {
+  return { leads: 0, groups: 0, persons: 0, sizeNotGiven: 0, open: 0, converted: 0, lost: 0, convRate: 0 };
+}
+
+function addToTally(t: LeadTally, q: ExecLead) {
+  t.leads += 1;
+  if (isGroup(q.groupSize)) t.groups += 1;
+  const size = knownSize(q.groupSize);
+  if (size != null) t.persons += size;
+  else t.sizeNotGiven += 1;
+  t[leadOutcome(q.status)] += 1;
+}
+
+function finishTally(t: LeadTally) {
+  t.convRate = t.leads > 0 ? Math.round((t.converted / t.leads) * 100) : 0;
+}
+
+export function tallyLeads(leads: ExecLead[]): LeadTally {
+  const t = emptyTally();
+  for (const q of leads) addToTally(t, q);
+  finishTally(t);
+  return t;
+}
+
+export type ExecBreakdownRow = LeadTally & {
   /** Keyed on the assignee's id, not their name as summariseHandovers is:
    * two execs who share a name are two people and must stay two rows. */
   id: string;
   name: string;
   isPartnerAgency: boolean;
-  /** Leads handed over — one lead is one group. */
-  groups: number;
-  /** Travellers across the groups that gave a size. */
-  pax: number;
-  sizeNotGiven: number;
-  bands: Record<GroupSizeBand, number>;
-  open: number;
-  converted: number;
-  lost: number;
-  convRate: number;
   byDestination: Record<string, number>;
   byChannel: Record<string, number>;
 };
 
 /**
- * @param leads Handovers in range, newest first — the name shown for an
- *   assignee is the one on their most recent handover.
- * @returns Our own execs first, then agencies; each block ranked by groups,
+ * @param leads Handovers, newest first — the name shown for an assignee is
+ *   the one on their most recent handover.
+ * @returns Our own execs first, then agencies; each block ranked by leads,
  *   ties broken by name so the order is stable between downloads.
  */
 export function summariseByExec(leads: ExecLead[]): ExecBreakdownRow[] {
@@ -167,34 +262,13 @@ export function summariseByExec(leads: ExecLead[]): ExecBreakdownRow[] {
     const id = q.assignedTo ?? "__unassigned__";
     let row = rows.get(id);
     if (!row) {
-      row = {
-        id,
-        name: "",
-        isPartnerAgency: q.isPartnerAgency,
-        groups: 0, pax: 0, sizeNotGiven: 0,
-        bands: { "1-2": 0, "3-5": 0, "6-10": 0, "11+": 0 },
-        open: 0, converted: 0, lost: 0, convRate: 0,
-        byDestination: {}, byChannel: {},
-      };
+      row = { ...emptyTally(), id, name: "", isPartnerAgency: q.isPartnerAgency, byDestination: {}, byChannel: {} };
       rows.set(id, row);
     }
     // An unnamed assignee is still counted — see summariseHandovers.
     if (!row.name) row.name = q.assignedToName?.trim() ?? "";
 
-    row.groups += 1;
-
-    const band = groupSizeBand(q.groupSize);
-    if (band) {
-      row.bands[band] += 1;
-      row.pax += q.groupSize!;
-    } else {
-      row.sizeNotGiven += 1;
-    }
-
-    if (CONVERTED_STATUSES.includes(q.status)) row.converted += 1;
-    else if (LOST_STATUSES.includes(q.status)) row.lost += 1;
-    else row.open += 1;
-
+    addToTally(row, q);
     const dest = destinationLabel(q.destination);
     row.byDestination[dest] = (row.byDestination[dest] ?? 0) + 1;
     row.byChannel[q.channel] = (row.byChannel[q.channel] ?? 0) + 1;
@@ -202,13 +276,27 @@ export function summariseByExec(leads: ExecLead[]): ExecBreakdownRow[] {
 
   for (const row of rows.values()) {
     if (!row.name) row.name = "Unnamed";
-    row.convRate = row.groups > 0 ? Math.round((row.converted / row.groups) * 100) : 0;
+    finishTally(row);
   }
 
   return [...rows.values()].sort(
     (a, b) =>
       Number(a.isPartnerAgency) - Number(b.isPartnerAgency) ||
-      b.groups - a.groups ||
+      b.leads - a.leads ||
       a.name.localeCompare(b.name),
   );
+}
+
+/** One tally per value of `keyOf` — destinations, sources — ranked by leads
+ * then name. */
+export function summariseBy(leads: ExecLead[], keyOf: (q: ExecLead) => string): (LeadTally & { name: string })[] {
+  const rows = new Map<string, LeadTally & { name: string }>();
+  for (const q of leads) {
+    const name = keyOf(q);
+    let row = rows.get(name);
+    if (!row) rows.set(name, (row = { ...emptyTally(), name }));
+    addToTally(row, q);
+  }
+  for (const row of rows.values()) finishTally(row);
+  return [...rows.values()].sort((a, b) => b.leads - a.leads || a.name.localeCompare(b.name));
 }
