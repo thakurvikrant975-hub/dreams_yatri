@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Download, RotateCcw, UsersRound } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Checkbox } from "../ui/checkbox";
 import { MinNumberFilter } from "./MinNumberFilter";
 import type { LeadRow } from "../../actions/lead-manager-analytics-actions";
 import {
@@ -56,8 +55,8 @@ function FilterSelect({
 /**
  * The lead manager's exec report: filter the range's handovers, see how many
  * match, download them as a PDF. Different filters make different reports —
- * one exec gives that exec's report, a minimum of 6 persons gives the group
- * report, a destination gives who was handed that destination's leads — with
+ * one exec gives that exec's report, a minimum of GROUP_MIN_PERSONS gives the
+ * group report, a destination gives who was handed that destination's leads — with
  * the PDF dropping whichever breakdown a filter has collapsed to one row.
  *
  * Works on the rows the page already holds, so filtering is instant and the
@@ -72,7 +71,6 @@ export function ExecReportPanel({
   generatedByName?: string;
 }) {
   const [picked, setPicked] = useState<ExecReportFilters>(NO_FILTERS);
-  const [includeLeadList, setIncludeLeadList] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Choices come from the range itself, so every option matches something.
@@ -125,7 +123,7 @@ export function ExecReportPanel({
     setBusy(true);
     try {
       const { buildExecReportPdf } = await import("./execReportPdf");
-      const pdf = buildExecReportPdf(matched, { filters, assigneeName, range: { from, to }, includeLeadList, generatedByName });
+      const pdf = buildExecReportPdf(matched, { filters, assigneeName, range: { from, to }, generatedByName });
       const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       pdf.save(`${slug}-${from}_to_${to}.pdf`);
     } catch (e) {
@@ -201,12 +199,7 @@ export function ExecReportPanel({
             {applied.length > 0 && <span className="text-dashboard-base-content/45"> — {applied.join(" · ")}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <Checkbox
-            checked={includeLeadList}
-            onChange={() => setIncludeLeadList((v) => !v)}
-            label={<span className="text-xs text-dashboard-base-content/70">List every lead</span>}
-          />
+        <div className="shrink-0">
           <button
             type="button"
             onClick={download}

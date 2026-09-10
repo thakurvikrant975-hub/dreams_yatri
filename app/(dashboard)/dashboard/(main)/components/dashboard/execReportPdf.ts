@@ -29,7 +29,6 @@ export function buildExecReportPdf(
     filters: ExecReportFilters;
     assigneeName?: string;
     range: { from: string; to: string };
-    includeLeadList: boolean;
     generatedByName?: string;
   },
 ): jsPDF {
@@ -190,26 +189,20 @@ export function buildExecReportPdf(
     sectionTitle("Per executive");
     drawTable(
       [
-        { header: "Executive", width: 44 },
-        { header: "Leads", width: 16, align: "right" },
-        { header: `Groups ${GROUP_MIN_PERSONS}+`, width: 18, align: "right" },
-        { header: "Persons", width: 18, align: "right" },
-        { header: "Open", width: 14, align: "right" },
-        { header: "Won", width: 14, align: "right" },
-        { header: "Lost", width: 14, align: "right" },
-        { header: "Conv %", width: 16, align: "right" },
-        { header: "Top destination", width: 28 },
+        { header: "Executive", width: 70 },
+        { header: "Leads", width: 20, align: "right" },
+        { header: `Groups ${GROUP_MIN_PERSONS}+`, width: 22, align: "right" },
+        { header: "Open", width: 17, align: "right" },
+        { header: "Won", width: 17, align: "right" },
+        { header: "Lost", width: 17, align: "right" },
+        { header: "Conv %", width: 19, align: "right" },
       ],
       execs,
-      (r, ci) => {
-        const top = Object.entries(r.byDestination).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
-        return [
-          r.isPartnerAgency ? `${r.name} (agency)` : r.name,
-          num(r.leads), num(r.groups), num(r.persons), num(r.open), num(r.converted), num(r.lost),
-          `${r.convRate}%`, top ? top[0] : "",
-        ][ci];
-      },
-      ["Total", num(total.leads), num(total.groups), num(total.persons), num(total.open), num(total.converted), num(total.lost), `${total.convRate}%`, ""],
+      (r, ci) => [
+        r.isPartnerAgency ? `${r.name} (agency)` : r.name,
+        num(r.leads), num(r.groups), num(r.open), num(r.converted), num(r.lost), `${r.convRate}%`,
+      ][ci],
+      ["Total", num(total.leads), num(total.groups), num(total.open), num(total.converted), num(total.lost), `${total.convRate}%`],
     );
   }
 
@@ -223,36 +216,6 @@ export function buildExecReportPdf(
   if (bySource.length > 1) {
     sectionTitle("By source");
     drawTable(breakdownCols("Source"), bySource, (r, ci) => [r.name, ...tallyCells(r)][ci], ["Total", ...tallyCells(total)]);
-  }
-
-  // ── Every lead ──────────────────────────────────────────────────────────
-  if (opts.includeLeadList) {
-    const when = new Intl.DateTimeFormat("en-IN", {
-      timeZone: IST_TZ, day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
-    });
-    const status = (s: string) => s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
-    sectionTitle(`Every lead (${rows.length})`);
-    drawTable(
-      [
-        { header: "Assigned (IST)", width: 28 },
-        { header: "Lead", width: 34 },
-        { header: "Executive", width: 32 },
-        { header: "Destination", width: 28 },
-        { header: "Persons", width: 18, align: "right" },
-        { header: "Source", width: 22 },
-        { header: "Status", width: 20 },
-      ],
-      rows,
-      (q, ci) => [
-        q.assignedAt ? when.format(new Date(q.assignedAt)) : "—",
-        q.name,
-        q.assignedToName?.trim() || "Unnamed",
-        destinationLabel(q.destination),
-        q.groupSize != null && q.groupSize > 0 ? num(q.groupSize) : "—",
-        q.channel,
-        status(q.status),
-      ][ci],
-    );
   }
 
   // ── Footer, once the page count is known ────────────────────────────────

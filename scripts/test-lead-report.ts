@@ -134,27 +134,25 @@ const execLead = (over: Partial<ExecLead> = {}): ExecLead => ({
 });
 
 console.log("\nWhat counts as a group:");
-check("above 5 persons is a group", [5, 6, 7, 40].map(isGroup), [false, true, true, true]);
+check("5 or more persons is a group", [4, 5, 6, 40].map(isGroup), [false, true, true, true]);
 check("no size, zero or negative is not", [null, 0, -8].map(isGroup), [false, false, false]);
 
 console.log("\nOne exec's breakdown:");
 {
   const [r] = summariseByExec([
     execLead({ groupSize: 2, status: "CONVERTED" }),
-    execLead({ groupSize: 6, status: "PAYMENT_INITIATED", destination: "goa " }),
+    execLead({ groupSize: 5, status: "PAYMENT_INITIATED", destination: "goa " }),
     execLead({ groupSize: 12, status: "CLIENT_DECLINED", destination: "Kerala", channel: "Meta" }),
     execLead({ groupSize: null, status: "FOLLOW_UP", destination: null, channel: "Meta" }),
     execLead({ groupSize: 0, status: "CLOSED", destination: "Kerala" }),
   ]);
   check("leads", r.leads, 5);
-  check("groups are the 6+ parties", r.groups, 2);
-  check("persons counts only leads that gave a size", r.persons, 20);
+  check("groups are the 5+ parties", r.groups, 2);
+  check("persons counts only leads that gave a size", r.persons, 19);
   check("size not given", r.sizeNotGiven, 2);
   check("outcomes", [r.open, r.converted, r.lost], [1, 2, 2]);
   check("outcomes add up to leads", r.open + r.converted + r.lost, r.leads);
   check("conversion rate", r.convRate, 40);
-  check("destinations merged case-insensitively", r.byDestination, { Goa: 2, Kerala: 2, "Not specified": 1 });
-  check("sources", r.byChannel, { Google: 3, Meta: 2 });
 }
 
 console.log("\nFilters:");
@@ -174,7 +172,12 @@ console.log("\nFilters:");
   check("destination matches however it was typed", run({ destination: "Goa" }), 3);
   check("source", run({ source: "Meta" }), 2);
   check("outcome", [run({ outcome: "converted" }), run({ outcome: "lost" }), run({ outcome: "open" })], [1, 1, 3]);
-  check("min persons 6 is the group report", run({ minPersons: GROUP_MIN_PERSONS }), 3);
+  check("min persons 5 is the group report", run({ minPersons: GROUP_MIN_PERSONS }), 3);
+  check(
+    "a party of exactly 5 is in the group report, 4 is not",
+    filterExecLeads([execLead({ groupSize: 5 }), execLead({ groupSize: 4 })], { ...NO_FILTERS, minPersons: GROUP_MIN_PERSONS }).map((q) => q.groupSize),
+    [5],
+  );
   check("min persons leaves out leads with no size", run({ minPersons: 1 }), 4);
   check("min persons 0 means any", run({ minPersons: 0 }), 5);
   check("filters combine", run({ assignee: "inhouse", minPersons: 6, source: "Meta" }), 1);

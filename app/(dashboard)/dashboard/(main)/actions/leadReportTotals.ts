@@ -96,9 +96,10 @@ export function summariseHandovers(
 // narrowed by whatever filters are set, so with none set every figure adds
 // back up to `handedOverInRange`.
 
-/** A lead counts as a group from this many persons up — "above 5", as the
- * sales team uses the word. Smaller parties are still leads, just not groups. */
-export const GROUP_MIN_PERSONS = 6;
+/** A lead counts as a group from this many persons up — five travelling
+ * together is already a group, as the sales team uses the word. Smaller
+ * parties are still leads, just not groups. */
+export const GROUP_MIN_PERSONS = 5;
 
 /** Only a lead that states its size can be called a group. Zero or negative
  * is a typo, not a party. */
@@ -245,8 +246,6 @@ export type ExecBreakdownRow = LeadTally & {
   id: string;
   name: string;
   isPartnerAgency: boolean;
-  byDestination: Record<string, number>;
-  byChannel: Record<string, number>;
 };
 
 /**
@@ -262,16 +261,13 @@ export function summariseByExec(leads: ExecLead[]): ExecBreakdownRow[] {
     const id = q.assignedTo ?? "__unassigned__";
     let row = rows.get(id);
     if (!row) {
-      row = { ...emptyTally(), id, name: "", isPartnerAgency: q.isPartnerAgency, byDestination: {}, byChannel: {} };
+      row = { ...emptyTally(), id, name: "", isPartnerAgency: q.isPartnerAgency };
       rows.set(id, row);
     }
     // An unnamed assignee is still counted — see summariseHandovers.
     if (!row.name) row.name = q.assignedToName?.trim() ?? "";
 
     addToTally(row, q);
-    const dest = destinationLabel(q.destination);
-    row.byDestination[dest] = (row.byDestination[dest] ?? 0) + 1;
-    row.byChannel[q.channel] = (row.byChannel[q.channel] ?? 0) + 1;
   }
 
   for (const row of rows.values()) {
