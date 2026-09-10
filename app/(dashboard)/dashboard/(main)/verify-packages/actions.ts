@@ -260,6 +260,8 @@ export async function rejectCustomPackage(packageId: string, formData: FormData)
 const pricingEditSchema = z.object({
     marginPercentage: z.coerce.number().min(0).max(100),
     gstPercentage: z.coerce.number().min(0).max(100),
+    childPricingPercentage: z.coerce.number().min(0).max(100),
+    infantPricingPercentage: z.coerce.number().min(0).max(100),
     // Costing's concession off the final price. Null type = no discount, and
     // clears any previous one. PERCENT is capped at 100 here rather than only
     // being clamped downstream: applyDiscount floors the payable figure at
@@ -295,6 +297,7 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
             select: {
                 id: true, status: true, queryId: true, title: true,
                 marginPercentage: true, gstPercentage: true,
+                childPricingPercentage: true, infantPricingPercentage: true,
                 discountType: true, discountValue: true, discountNote: true,
                 tickets: { select: { id: true, fare: true, type: true, fromPlace: true, toPlace: true } },
                 addOns: { select: { id: true, name: true, price: true, quantity: true } },
@@ -341,12 +344,16 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
         const previousData: Record<string, string> = {
             "Margin": `${pkg.marginPercentage}%`,
             "GST": `${pkg.gstPercentage}%`,
+            "Child Pricing": `${pkg.childPricingPercentage}%`,
+            "Infant Pricing": `${pkg.infantPricingPercentage}%`,
             "Discount": discountText(pkg.discountType, pkg.discountValue),
             "Discount reason": pkg.discountNote ?? "—",
         };
         const newData: Record<string, string> = {
             "Margin": `${data.marginPercentage}%`,
             "GST": `${data.gstPercentage}%`,
+            "Child Pricing": `${data.childPricingPercentage}%`,
+            "Infant Pricing": `${data.infantPricingPercentage}%`,
             "Discount": discountText(data.discountType, data.discountValue ?? null),
             "Discount reason": data.discountNote?.trim() || "—",
         };
@@ -396,6 +403,8 @@ export async function updatePackagePricing(packageId: string, input: PricingEdit
                 data: {
                     marginPercentage: data.marginPercentage,
                     gstPercentage: data.gstPercentage,
+                    childPricingPercentage: data.childPricingPercentage,
+                    infantPricingPercentage: data.infantPricingPercentage,
                     // Clearing the type clears the value and the note with it —
                     // a stray amount left behind would reapply the moment a
                     // type was picked again.

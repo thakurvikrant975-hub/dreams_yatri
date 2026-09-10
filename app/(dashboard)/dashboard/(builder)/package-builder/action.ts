@@ -1040,6 +1040,10 @@ export interface QueryDetail {
     discountValue: number | null;
     discountNote: string | null;
     gstPercentage:    number;
+    /** What fraction of an adult share a child/infant is charged — see
+     * payingPaxOf in traveller-ages.ts. */
+    childPricingPercentage: number;
+    infantPricingPercentage: number;
     inclusions:      string[];
     exclusions:      string[];
     /** Read-only — costing's per-package removals from the merged
@@ -2137,6 +2141,8 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       marginPercentage: true,
       discountType: true, discountValue: true, discountNote: true,
       gstPercentage:    true,
+      childPricingPercentage: true,
+      infantPricingPercentage: true,
       inclusions:      true,
       exclusions:      true,
       removedInclusions: true,

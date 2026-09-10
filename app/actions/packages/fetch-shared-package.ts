@@ -131,6 +131,8 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
       infantAges: true,
       infantMaxAge: true,
       childMaxAge: true,
+      childPricingPercentage: true,
+      infantPricingPercentage: true,
       pricePerPerson: true, totalPrice: true, currency: true,
       discountType: true, discountValue: true, pricingSnapshot: true,
       inclusions: true, exclusions: true, removedInclusions: true, removedExclusions: true, termsNotes: true,
@@ -257,6 +259,8 @@ export async function getSharedPackage(packageId: string): Promise<PreviewData |
     infantAges:      pkg.infantAges ?? [],
     infantMaxAge:    pkg.infantMaxAge,
     childMaxAge:     pkg.childMaxAge,
+    childPricingPercentage:  pkg.childPricingPercentage,
+    infantPricingPercentage: pkg.infantPricingPercentage,
     pricePerPerson:  pkg.pricePerPerson?.toString() ?? "",
     totalPrice:      pkg.totalPrice?.toString() ?? "",
     // What it takes to hold the booking, computed by the same engine that

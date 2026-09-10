@@ -74,6 +74,11 @@ export interface PackageForm {
   totalPrice: string;
   marginPercentage: string;
   gstPercentage: string;
+  /** What fraction of an adult share a child/infant is charged — see
+   * payingPaxOf in traveller-ages.ts. Editable only from the Costing tab
+   * (VerifyPackageDetailClient), same as margin/GST — read-only here. */
+  childPricingPercentage: string;
+  infantPricingPercentage: string;
   /** Costing's concession off the final price. Null type = no discount. */
   discountType: "FLAT" | "PERCENT" | null;
   discountValue: string;

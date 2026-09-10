@@ -3080,6 +3080,19 @@ model custom_packages {
   marginPercentage        Float                         @default(25)
   gstPercentage           Float                         @default(5)
   /**
+   * What fraction of a full adult share a child/infant is charged, per
+   * package (0-100). An adult is always a full share; the package price is
+   * divided by adults + children*childPricingPercentage/100 +
+   * infants*infantPricingPercentage/100 to get the per-adult headline
+   * figure, and per-child/per-infant is exactly that times its own
+   * percentage — see payingPaxOf in package-builder/traveller-ages.ts.
+   * Defaults follow common travel-industry convention (child pays half,
+   * infant travels free) but are editable per package on the Costing tab
+   * for a trip that prices them differently.
+   */
+  childPricingPercentage  Float                         @default(50)
+  infantPricingPercentage Float                         @default(0)
+  /**
    * Costing-team correction, set during pre-send review (verify-packages'
    * updatePackagePricing) when the live-computed hotel/cab subtotal is
    * wrong — e.g. the exec picked the wrong room rate. Null means "use the

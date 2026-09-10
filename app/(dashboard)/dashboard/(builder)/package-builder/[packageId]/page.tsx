@@ -634,6 +634,7 @@ export default function PackageBuilderDetailPage() {
     ...DEFAULT_AGE_BANDS,
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
+    childPricingPercentage: "50", infantPricingPercentage: "0",
     discountType: null, discountValue: "", discountNote: "",
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
@@ -842,6 +843,8 @@ export default function PackageBuilderDetailPage() {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          childPricingPercentage: cp.childPricingPercentage?.toString() ?? "50",
+          infantPricingPercentage: cp.infantPricingPercentage?.toString() ?? "0",
           discountType: cp.discountType ?? null,
           discountValue: cp.discountValue != null ? String(cp.discountValue) : "",
           discountNote: cp.discountNote ?? "",
@@ -1112,9 +1115,15 @@ export default function PackageBuilderDetailPage() {
     const taxable = baseCost + marginAmount;
     const gstAmount = Math.round(taxable * gstPct / 100);
     const finalPrice = taxable + gstAmount;
-    // Children too young to count as a head — see payingPaxOf. The total is
-    // unchanged; this is only what it is divided by.
-    const totalPax = payingPaxOf(form);
+    // Children too young to count as a full head — see payingPaxOf. The
+    // total is unchanged; this is only what it is divided by. Percentages
+    // are string-typed on PackageForm (read-only here, edited only from the
+    // Costing tab), so parsed the same way margin/gst already are above.
+    const totalPax = payingPaxOf({
+      ...form,
+      childPricingPercentage: parseFloat(form.childPricingPercentage) || 50,
+      infantPricingPercentage: parseFloat(form.infantPricingPercentage) || 0,
+    });
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,
@@ -1216,6 +1225,8 @@ export default function PackageBuilderDetailPage() {
         totalPrice: cp.totalPrice?.toString() ?? "",
         marginPercentage: cp.marginPercentage?.toString() ?? f.marginPercentage,
         gstPercentage: cp.gstPercentage?.toString() ?? f.gstPercentage,
+        childPricingPercentage: cp.childPricingPercentage?.toString() ?? f.childPricingPercentage,
+        infantPricingPercentage: cp.infantPricingPercentage?.toString() ?? f.infantPricingPercentage,
       }));
     }
   }
@@ -2193,6 +2204,11 @@ Rules:
   const liveComputedPrice = computedPricingForPreview.finalPrice > 0;
   const previewForm: PreviewData = {
     ...form,
+    // PackageForm keeps these as strings (read-only here, edited only from
+    // the Costing tab); PreviewData wants the number payingPaxOf/
+    // perHeadPricingOf actually compute with.
+    childPricingPercentage: parseFloat(form.childPricingPercentage) || 50,
+    infantPricingPercentage: parseFloat(form.infantPricingPercentage) || 0,
     pricePerPerson: packageEditable && liveComputedPrice
       ? String(computedPricingForPreview.perPerson)
       : form.pricePerPerson || (liveComputedPrice ? String(computedPricingForPreview.perPerson) : form.pricePerPerson),

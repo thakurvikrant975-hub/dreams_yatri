@@ -85,6 +85,9 @@ type PkgInfo = {
     infantMaxAge: number; childMaxAge: number;
     pricePerPerson: number | null; totalPrice: number | null; currency: string;
     marginPercentage: number; gstPercentage: number;
+    /** What fraction of an adult share a child/infant is charged — see
+     * payingPaxOf in traveller-ages.ts. */
+    childPricingPercentage: number; infantPricingPercentage: number;
     discountType: "FLAT" | "PERCENT" | null; discountValue: number | null; discountNote: string | null;
     status: string; builtByName: string | null; sentAt: Date | null;
     readyAt: Date | null; readyByName: string | null; readyNote: string | null;
@@ -234,6 +237,8 @@ export function VerifyPackageDetailClient({
 
     const [margin, setMargin] = useState(pkg.marginPercentage);
     const [gst, setGst] = useState(pkg.gstPercentage);
+    const [childPct, setChildPct] = useState(pkg.childPricingPercentage);
+    const [infantPct, setInfantPct] = useState(pkg.infantPricingPercentage);
     // Costing's concession. It lives here rather than in the builder's Pricing
     // tab because this is the path that actually writes to the row and records
     // the change — a discount is the most reviewable number on the screen, so
@@ -278,6 +283,8 @@ export function VerifyPackageDetailClient({
     function enterEditMode() {
         setMargin(pkg.marginPercentage);
         setGst(pkg.gstPercentage);
+        setChildPct(pkg.childPricingPercentage);
+        setInfantPct(pkg.infantPricingPercentage);
         setDiscountType(pkg.discountType);
         setDiscountValue(pkg.discountValue);
         setDiscountNote(pkg.discountNote ?? "");
@@ -303,8 +310,14 @@ export function VerifyPackageDetailClient({
     const cabSubtotal = useMemo(() => Object.values(cabDayEdits).reduce((sum, v) => sum + (v || 0), 0), [cabDayEdits]);
     const ticketsSubtotal = useMemo(() => Object.values(ticketFares).reduce((sum, f) => sum + (f || 0), 0), [ticketFares]);
     const addonsSubtotal = useMemo(() => Object.values(addonEdits).reduce((sum, a) => sum + (a.price || 0) * (a.quantity || 1), 0), [addonEdits]);
-    // Same divisor the builder quotes with — see payingPaxOf.
-    const totalPax = payingPaxOf(pkg);
+    // Same divisor the builder quotes with — see payingPaxOf. Uses the
+    // live-edited percentages (not pkg's saved ones) so the preview updates
+    // as the reviewer types, same as margin/gst already do.
+    const totalPax = payingPaxOf({
+        ...pkg,
+        childPricingPercentage: childPct,
+        infantPricingPercentage: infantPct,
+    });
 
     const preview = useMemo(() => computeFinalPricing({
         hotelSubtotal, cabSubtotal, addonsSubtotal, ticketsSubtotal,
@@ -337,6 +350,8 @@ export function VerifyPackageDetailClient({
         const payload: PricingEditInput = {
             marginPercentage: margin,
             gstPercentage: gst,
+            childPricingPercentage: childPct,
+            infantPricingPercentage: infantPct,
             discountType,
             discountValue: discountType ? (discountValue ?? 0) : null,
             discountNote: discountNote.trim() || undefined,
@@ -364,6 +379,8 @@ export function VerifyPackageDetailClient({
                     ...f,
                     marginPercentage: String(margin),
                     gstPercentage: String(gst),
+                    childPricingPercentage: String(childPct),
+                    infantPricingPercentage: String(infantPct),
                     discountType,
                     discountValue: discountType ? String(discountValue ?? 0) : "",
                     discountNote: discountNote.trim(),
@@ -586,6 +603,16 @@ export function VerifyPackageDetailClient({
                                     <Label className="text-xs">GST %</Label>
                                     <Input type="number" min={0} max={100} step={0.5} value={gst}
                                         onChange={(e) => setGst(Number(e.target.value))} className="w-28" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Child Pricing %</Label>
+                                    <Input type="number" min={0} max={100} step={1} value={childPct}
+                                        onChange={(e) => setChildPct(Number(e.target.value))} className="w-28" />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs">Infant Pricing %</Label>
+                                    <Input type="number" min={0} max={100} step={1} value={infantPct}
+                                        onChange={(e) => setInfantPct(Number(e.target.value))} className="w-28" />
                                 </div>
                             </div>
                         )}
@@ -832,7 +859,18 @@ export function VerifyPackageDetailClient({
                                     {inr(editMode ? preview.finalPrice : s.finalPrice)}
                                 </span>
                             </div>
-                            <p className="text-xs text-dashboard-neutral">{inr(editMode ? preview.pricePerPerson : s.pricePerPerson)} per person</p>
+                            {(() => {
+                                const perAdult = editMode ? preview.pricePerPerson : s.pricePerPerson;
+                                const cPct = (editMode ? childPct : pkg.childPricingPercentage) / 100;
+                                const iPct = (editMode ? infantPct : pkg.infantPricingPercentage) / 100;
+                                return (
+                                    <p className="text-xs text-dashboard-neutral">
+                                        {inr(perAdult)} per adult
+                                        {pkg.children > 0 && cPct > 0 && <> · {inr(perAdult * cPct)} per child</>}
+                                        {pkg.infants > 0 && iPct > 0 && <> · {inr(perAdult * iPct)} per infant</>}
+                                    </p>
+                                );
+                            })()}
                             {!editMode && (s.hotel.overridden || s.cab.overridden) && (
                                 <p className="text-[11px] text-dashboard-neutral pt-1 border-t border-dashboard-base-300/60 mt-1.5">
                                     {s.hotel.overridden && s.cab.overridden ? "Hotel and cab pricing" : s.hotel.overridden ? "Hotel pricing" : "Cab pricing"} manually corrected during review

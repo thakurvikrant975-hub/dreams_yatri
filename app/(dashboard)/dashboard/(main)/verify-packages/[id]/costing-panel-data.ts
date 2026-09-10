@@ -38,6 +38,7 @@ export async function loadCostingPanelData(id: string) {
                 infantMaxAge: true, childMaxAge: true,
                 pricePerPerson: true, totalPrice: true, currency: true,
                 marginPercentage: true, gstPercentage: true,
+                childPricingPercentage: true, infantPricingPercentage: true,
                 discountType: true, discountValue: true, discountNote: true,
                 hotelSubtotalOverride: true, cabSubtotalOverride: true,
                 status: true, builtByName: true, sentAt: true,

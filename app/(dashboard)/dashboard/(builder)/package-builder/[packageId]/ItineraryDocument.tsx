@@ -426,6 +426,13 @@ export interface PreviewData {
   infantAges?: number[];
   infantMaxAge?: number | null;
   childMaxAge?: number | null;
+  /** What fraction of an adult share a child/infant is charged (0-100) —
+   * see payingPaxOf/perHeadPricingOf in traveller-ages.ts. Optional for the
+   * same reason as the age fields above: a package built before this existed
+   * has neither, and payingPaxOf/perHeadPricingOf fall back to the
+   * industry-default 50%/0% when absent. */
+  childPricingPercentage?: number | null;
+  infantPricingPercentage?: number | null;
   /** What it takes to hold the booking, from the payment policy engine — see
    * getSharedPackage. Only the client's page supplies it; the builder and the
    * PDF leave it undefined and say nothing about payment terms. */
@@ -4134,7 +4141,22 @@ export function ItineraryDocument({
     headlinePerPerson * payingPax === headlineTotal;
 
   const perPersonStr = headlinePerPerson
-    ? `${perPersonExact ? "" : "~"}${form.currency} ${Math.round(headlinePerPerson).toLocaleString("en-IN")} per person`
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${Math.round(headlinePerPerson).toLocaleString("en-IN")} per adult`
+    : null;
+
+  // Per-child/per-infant, derived from the same headline per-adult figure —
+  // see perHeadPricingOf (same formula, computed inline here since
+  // headlinePerPerson already IS the per-adult price once locked/saved).
+  // Shown only when that category is present AND actually charged — an
+  // infant is free by default, so nothing to show at 0%; the "charges as
+  // applicable" note below covers that case instead of a ₹0 line.
+  const childPct = Math.max(0, form.childPricingPercentage ?? 50) / 100;
+  const infantPct = Math.max(0, form.infantPricingPercentage ?? 0) / 100;
+  const perChildStr = form.children > 0 && headlinePerPerson != null && childPct > 0
+    ? `${form.currency} ${(headlinePerPerson * childPct).toLocaleString("en-IN", { maximumFractionDigits: 2 })} per child`
+    : null;
+  const perInfantStr = form.infants > 0 && headlinePerPerson != null && infantPct > 0
+    ? `${form.currency} ${(headlinePerPerson * infantPct).toLocaleString("en-IN", { maximumFractionDigits: 2 })} per infant`
     : null;
 
   // Route map legs derived straight from the ticket list — see the module
@@ -4532,7 +4554,9 @@ export function ItineraryDocument({
                     <div className="space-y-1">
                       <p className="text-[15px] text-white font-medium">{paxLine}</p>
                       {perPersonStr && <p className="text-[13.5px] text-white/80">{perPersonStr}</p>}
-                      {form.infants > 0 && (
+                      {perChildStr && <p className="text-[13.5px] text-white/80">{perChildStr}</p>}
+                      {perInfantStr && <p className="text-[13.5px] text-white/80">{perInfantStr}</p>}
+                      {form.infants > 0 && !perInfantStr && (
                         <p className="text-[12px] text-white/70">Infant charges as applicable / on request</p>
                       )}
                     </div>

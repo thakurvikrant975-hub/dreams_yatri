@@ -310,7 +310,11 @@ export function CostingPricingPanel({
           )}
           <Row label="Final price" value={inr(computed.finalPrice)} strong />
           <Row
-            label={`Per person (${payingPaxOf(form)} paying)`}
+            label={`Per adult (${payingPaxOf({
+              ...form,
+              childPricingPercentage: parseFloat(form.childPricingPercentage) || 50,
+              infantPricingPercentage: parseFloat(form.infantPricingPercentage) || 0,
+            }).toFixed(1).replace(/\.0$/, "")} shares)`}
             value={inr(computed.perPerson)}
             muted
           />

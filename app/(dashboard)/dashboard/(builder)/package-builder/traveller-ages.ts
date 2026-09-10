@@ -304,17 +304,26 @@ export function pricingPartyOf(
   return { adults, children };
 }
 
-/** How many heads the package price is divided by.
+/** How many "shares" the package price is divided by, to get the per-adult
+ * headline price.
  *
- * Adults only — children and infants share the room and the trip their
- * parents are already paying for, not an extra slice of it. The total still
- * reflects a paying child's real hotel and meal cost; this only decides what
- * that total is divided BY for the headline "per person" figure.
+ * An adult is always a full share. A child or infant is a fractional share,
+ * set per package via childPricingPercentage/infantPricingPercentage (0-100,
+ * see custom_packages) — defaulting to 50% for a child and 0% (free) for an
+ * infant, common travel-industry convention, but editable per package on the
+ * Costing tab for a trip that prices them differently. The total still
+ * reflects every traveller's real hotel/meal cost; this only decides how
+ * that fixed total translates into the headline "per adult" figure —
+ * Math.round(finalPrice / payingPaxOf(x)) is the per-adult price, and
+ * per-child/per-infant is exactly that times its own percentage (see
+ * ItineraryDocument's Price Summary card, which does that division).
  *
  * The band fields below are accepted but unused: every call site passes the
  * whole party, and narrowing the signature would break them for no gain. The
- * bands still decide what each traveller COSTS (see classifyTravellers) —
- * they just no longer decide how many heads the total is split across.
+ * bands still decide what each traveller COSTS (see classifyTravellers) and
+ * which category a given traveller falls into — they don't affect this
+ * function, which only ever reads the package's own adults/children/infants
+ * totals, not individual ages.
  */
 export function payingPaxOf(input: {
   adults: number;
@@ -324,8 +333,33 @@ export function payingPaxOf(input: {
   infantAges?: number[] | null;
   infantMaxAge?: number | null;
   childMaxAge?: number | null;
+  childPricingPercentage?: number | null;
+  infantPricingPercentage?: number | null;
 }): number {
-  return Math.max(0, input.adults);
+  const adults = Math.max(0, input.adults);
+  const children = Math.max(0, input.children);
+  const infants = Math.max(0, input.infants ?? 0);
+  const childShare = Math.max(0, input.childPricingPercentage ?? 50) / 100;
+  const infantShare = Math.max(0, input.infantPricingPercentage ?? 0) / 100;
+  return adults + children * childShare + infants * infantShare;
+}
+
+/** Per-adult/per-child/per-infant headline prices, derived from a package's
+ * own weighted shares (see payingPaxOf) — algebraically exact:
+ * adults*perAdult + children*perChild + infants*perInfant === finalPrice, to
+ * the paisa, by construction. No rounding-then-patching is needed because
+ * every figure comes from dividing the same totalPrice by the same
+ * totalShares and scaling by the same percentages that defined those shares
+ * in the first place. */
+export function perHeadPricingOf(
+  input: Parameters<typeof payingPaxOf>[0],
+  finalPrice: number,
+): { perAdult: number; perChild: number; perInfant: number } {
+  const shares = payingPaxOf(input);
+  const perAdult = shares > 0 ? finalPrice / shares : finalPrice;
+  const childPct = Math.max(0, input.childPricingPercentage ?? 50) / 100;
+  const infantPct = Math.max(0, input.infantPricingPercentage ?? 0) / 100;
+  return { perAdult, perChild: perAdult * childPct, perInfant: perAdult * infantPct };
 }
 
 /** "2 Adults, 1 Child (age 7), 1 Infant (age 1)" — the traveller line as

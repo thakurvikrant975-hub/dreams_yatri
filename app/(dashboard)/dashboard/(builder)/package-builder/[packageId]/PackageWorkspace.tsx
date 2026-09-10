@@ -590,6 +590,7 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
     ...DEFAULT_AGE_BANDS,
     pricePerPerson: "", totalPrice: "",
     marginPercentage: "25", gstPercentage: "5",
+    childPricingPercentage: "50", infantPricingPercentage: "0",
     discountType: null, discountValue: "", discountNote: "",
     currency: "INR",
     inclusions: DEFAULT_INCLUSIONS,
@@ -798,6 +799,8 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
           totalPrice: cp.totalPrice?.toString() ?? "",
           marginPercentage: cp.marginPercentage?.toString() ?? "25",
           gstPercentage: cp.gstPercentage?.toString() ?? "5",
+          childPricingPercentage: cp.childPricingPercentage?.toString() ?? "50",
+          infantPricingPercentage: cp.infantPricingPercentage?.toString() ?? "0",
           discountType: cp.discountType ?? null,
           discountValue: cp.discountValue != null ? String(cp.discountValue) : "",
           discountNote: cp.discountNote ?? "",
@@ -1072,9 +1075,15 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
       value: form.discountValue ? parseFloat(form.discountValue) : null,
     });
     const finalPrice = disc.finalPrice;
-    // Children under five are not heads that pay a share — see payingPaxOf.
-    // The total is unchanged; this is only what it is divided by.
-    const totalPax = payingPaxOf(form);
+    // Children under five are not full heads that pay a share — see
+    // payingPaxOf. The total is unchanged; this is only what it is divided
+    // by. Percentages are string-typed on PackageForm (read-only here,
+    // edited only from the Costing tab), parsed the same way margin/gst are.
+    const totalPax = payingPaxOf({
+      ...form,
+      childPricingPercentage: parseFloat(form.childPricingPercentage) || 50,
+      infantPricingPercentage: parseFloat(form.infantPricingPercentage) || 0,
+    });
     const perPerson = totalPax > 0 ? Math.round(finalPrice / totalPax) : finalPrice;
     return {
       marginPct, gstPct, baseCost, ticketsSubtotal, hotelCabBase, addonsSubtotal,
@@ -1169,6 +1178,8 @@ export function PackageWorkspace({ packageId, caps, costingPanel }: {
         totalPrice: cp.totalPrice?.toString() ?? "",
         marginPercentage: cp.marginPercentage?.toString() ?? f.marginPercentage,
         gstPercentage: cp.gstPercentage?.toString() ?? f.gstPercentage,
+        childPricingPercentage: cp.childPricingPercentage?.toString() ?? f.childPricingPercentage,
+        infantPricingPercentage: cp.infantPricingPercentage?.toString() ?? f.infantPricingPercentage,
       }));
     }
   }
@@ -2087,6 +2098,11 @@ Rules:
   const liveComputedPrice = computedPricingForPreview.finalPrice > 0;
   const previewForm: PreviewData = {
     ...form,
+    // PackageForm keeps these as strings (read-only here, edited only from
+    // the Costing tab); PreviewData wants the number payingPaxOf/
+    // perHeadPricingOf actually compute with.
+    childPricingPercentage: parseFloat(form.childPricingPercentage) || 50,
+    infantPricingPercentage: parseFloat(form.infantPricingPercentage) || 0,
     // Only when one actually applies — the document renders nothing for a
     // package without a concession, rather than a struck-through equal figure.
     discount: computedPricingForPreview.discount.applies

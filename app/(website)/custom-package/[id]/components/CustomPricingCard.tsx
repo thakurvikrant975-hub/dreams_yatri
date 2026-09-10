@@ -4,6 +4,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import Card from "@/app/components/ui/Card";
 import { Text } from "@/app/components/ui/Typography";
 import type { PreviewData } from "@/app/(dashboard)/dashboard/(builder)/package-builder/[packageId]/ItineraryDocument";
+import { payingPaxOf } from "@/app/(dashboard)/dashboard/(builder)/package-builder/traveller-ages";
 import { useBookCustomPackage } from "./useBookCustomPackage";
 import SavingsBadge from "@/app/components/packages/SavingBadge";
 
@@ -13,17 +14,34 @@ import SavingsBadge from "@/app/components/packages/SavingBadge";
  * useBookCustomPackage) and hands off to the same login/pay/webhook
  * pipeline the catalog flow already uses, instead of a manual payment link. */
 export function CustomPricingCard({ form, packageId }: { form: PreviewData; packageId: string }) {
-  const totalPax = form.adults + form.children;
+  // Everyone travelling, for the "For N travellers" headcount — a different
+  // number from the weighted shares below, which decide how the total splits.
+  const totalPax = form.adults + form.children + form.infants;
+  // The actual divisor form.pricePerPerson was computed against — see
+  // payingPaxOf. Was form.adults + form.children (no infants, no weighting)
+  // before child/infant pricing existed; kept in sync with the real formula
+  // now so this "does it multiply back exactly" check isn't comparing
+  // against the wrong number.
+  const payingShares = payingPaxOf(form);
   const priceStr = form.totalPrice ? `${form.currency} ${Number(form.totalPrice).toLocaleString("en-IN")}` : "To be confirmed";
-  // Marked approximate when it doesn't multiply back to the total — per-person
-  // is the total divided by paying heads and rounded, so the two can sit a few
-  // rupees apart. This card shows both, a foot apart, on the page the client
-  // actually reads.
+  // Marked approximate when it doesn't multiply back to the total — per-adult
+  // is the total divided by paying shares and rounded, so the two can sit a
+  // few rupees apart. This card shows both, a foot apart, on the page the
+  // client actually reads.
   const perPersonExact =
-    !!form.pricePerPerson && !!form.totalPrice && totalPax > 0 &&
-    Number(form.pricePerPerson) * totalPax === Number(form.totalPrice);
-  const perPersonStr = form.pricePerPerson
-    ? `${perPersonExact ? "" : "~"}${form.currency} ${Number(form.pricePerPerson).toLocaleString("en-IN")} per person`
+    !!form.pricePerPerson && !!form.totalPrice && payingShares > 0 &&
+    Number(form.pricePerPerson) * payingShares === Number(form.totalPrice);
+  const perAdultPrice = form.pricePerPerson ? Number(form.pricePerPerson) : null;
+  const perPersonStr = perAdultPrice
+    ? `${perPersonExact ? "" : "~"}${form.currency} ${perAdultPrice.toLocaleString("en-IN")} per adult`
+    : null;
+  const childPct = Math.max(0, form.childPricingPercentage ?? 50) / 100;
+  const infantPct = Math.max(0, form.infantPricingPercentage ?? 0) / 100;
+  const perChildStr = form.children > 0 && perAdultPrice != null && childPct > 0
+    ? `${form.currency} ${(perAdultPrice * childPct).toLocaleString("en-IN", { maximumFractionDigits: 2 })} per child`
+    : null;
+  const perInfantStr = form.infants > 0 && perAdultPrice != null && infantPct > 0
+    ? `${form.currency} ${(perAdultPrice * infantPct).toLocaleString("en-IN", { maximumFractionDigits: 2 })} per infant`
     : null;
   const { handleBookNow, submitting, error } = useBookCustomPackage(packageId);
 
@@ -58,7 +76,13 @@ export function CustomPricingCard({ form, packageId }: { form: PreviewData; pack
           <Text size="sm" intent="secondary" weight="medium">{perPersonStr}</Text>
         )}
       </div>
-      {form.infants > 0 && (
+      {perChildStr && (
+        <Text size="xs" intent="secondary" className="mt-1 block text-right">{perChildStr}</Text>
+      )}
+      {perInfantStr && (
+        <Text size="xs" intent="secondary" className="mt-1 block text-right">{perInfantStr}</Text>
+      )}
+      {form.infants > 0 && !perInfantStr && (
         <Text size="xs" intent="muted" className="mt-1.5 block">
           Infant charges as applicable / on request
         </Text>

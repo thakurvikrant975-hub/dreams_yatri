@@ -48,6 +48,7 @@ export async function CostingPanel({ packageId, canReview }: {
         infantMaxAge: pkg.infantMaxAge, childMaxAge: pkg.childMaxAge,
         pricePerPerson: pkg.pricePerPerson, totalPrice: pkg.totalPrice, currency: pkg.currency,
         marginPercentage: pkg.marginPercentage, gstPercentage: pkg.gstPercentage,
+        childPricingPercentage: pkg.childPricingPercentage, infantPricingPercentage: pkg.infantPricingPercentage,
         discountType: pkg.discountType, discountValue: pkg.discountValue, discountNote: pkg.discountNote,
         status: pkg.status, builtByName: pkg.builtByName, sentAt: pkg.sentAt,
         readyAt: pkg.readyAt, readyByName: pkg.readyByName, readyNote: pkg.readyNote,
