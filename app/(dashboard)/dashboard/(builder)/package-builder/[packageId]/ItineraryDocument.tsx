@@ -3811,7 +3811,6 @@ function DocumentFooter({ form }: { form: PreviewData }) {
               Crafted for you by <span className="text-white font-semibold">{form.execName}</span>
               {form.execDesignation && <span> · {form.execDesignation}</span>}
             </p>
-            {form.execEmail && <p className="text-[13px] text-primary-400 font-medium">{form.execEmail}</p>}
           </div>
         )}
 
@@ -4341,11 +4340,6 @@ export function ItineraryDocument({
                               {form.execName}
                               {form.execDesignation && <span className="font-normal text-neutral-500"> · {form.execDesignation}</span>}
                             </p>
-                            {form.execEmail && (
-                              <a href={`mailto:${form.execEmail}`} className="flex items-center gap-1 text-neutral-700/90 text-[13px] mt-1.5 hover:underline w-fit">
-                                <Mail size={16} className="text-neutral-400/90" /> {form.execEmail}
-                              </a>
-                            )}
                           </>
                         ) : (
                           <p className="text-[14px] leading-[18px] text-neutral-400 italic">—</p>
