@@ -2779,11 +2779,31 @@ model package_gallery {
   @@index([route_id])
 }
 
+/// One row per follow-up *instance* — append-only, never overwritten. A
+/// reschedule closes out the current PENDING row (status → RESCHEDULED,
+/// resolvedAt set) and opens a new PENDING row chained to it via
+/// previousId/next, so the full history for a query is just every row for
+/// it ordered by createdAt. This is what makes exec follow-up discipline
+/// (completed vs missed vs endlessly rescheduled) queryable at all — the
+/// old upsert-in-place behavior threw that history away on every update.
 model QueryFollowUp {
   id             String          @id @default(cuid())
   packageQueryId String
   note           String
   followUpAt     DateTime?
+  status         FollowUpStatus  @default(PENDING)
+  /// When this row left PENDING — completed, rescheduled away from, missed
+  /// (set by the cron sweep), or cancelled.
+  resolvedAt     DateTime?
+  /// Free-text outcome captured on completion/cancellation (e.g. "converted
+  /// to booking", "no longer interested" — NOT used for reschedules, which
+  /// carry their follow-on note on the new row instead).
+  resolutionNote String?
+  /// The row this one supersedes, when it was created by a reschedule of an
+  /// existing PENDING follow-up. Forms a linked chain back to the original.
+  previousId     String?         @unique
+  previous       QueryFollowUp?  @relation("FollowUpChain", fields: [previousId], references: [id])
+  next           QueryFollowUp?  @relation("FollowUpChain")
   createdAt      DateTime        @default(now())
   createdById    String?
   createdByName  String?
@@ -2791,6 +2811,22 @@ model QueryFollowUp {
 
   @@index([packageQueryId])
   @@index([createdById])
+  @@index([status])
+}
+
+enum FollowUpStatus {
+  /// Scheduled, not yet due or not yet acted on.
+  PENDING
+  /// Exec resolved it — call made, outcome logged.
+  COMPLETED
+  /// Superseded by a new follow-up (see `next`) before or after coming due.
+  RESCHEDULED
+  /// followUpAt passed with no action taken, by the time the discipline cron
+  /// swept it — the "exec ignored this" signal.
+  MISSED
+  /// Manually withdrawn (e.g. added by mistake, query closed) without ever
+  /// resolving it as done.
+  CANCELLED
 }
 
 model package_queries {

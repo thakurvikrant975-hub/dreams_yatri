@@ -10,6 +10,7 @@ import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
 import { getEffectiveMember } from "@/app/(dashboard)/dashboard/(main)/lib/get-current-member";
+import { notifyMember } from "@/app/services/notifications/notify";
 
 // Normalizes a name to Title Case regardless of how it was typed/pasted in
 // ("MAYANK SHARMA", "mayank sharma", "mayank Sharma" all become "Mayank
@@ -220,11 +221,24 @@ export type CloseReason = {
     requiresNote: boolean;
 };
 
+/// Mirrors the DB enum's own keys — kept as a hand-written union rather than
+/// re-exporting the Prisma enum, matching QueryStatus's convention above.
+export type FollowUpStatus =
+    | "PENDING"
+    | "COMPLETED"
+    | "RESCHEDULED"
+    | "MISSED"
+    | "CANCELLED";
+
 export type FollowUp = {
     id: string;
     packageQueryId: string;
     note: string;
     followUpAt: Date | null;
+    status: FollowUpStatus;
+    resolvedAt: Date | null;
+    resolutionNote: string | null;
+    previousId: string | null;
     createdAt: Date;
     createdById: string | null;
     createdByName: string | null;
@@ -537,7 +551,7 @@ export async function assignQuery(
             assigneeName = member.name;
         }
 
-        await db.package_queries.update({
+        const updated = await db.package_queries.update({
             where: { id: queryId },
             data: {
                 assignedTo: memberId ?? null,
@@ -560,6 +574,20 @@ export async function assignQuery(
                 meta: { assignedTo: memberId, assigneeName } as Prisma.InputJsonValue,
             },
         });
+
+        // Skip notifying on self-assignment — no point toasting someone
+        // about a thing they just did themselves.
+        if (memberId && memberId !== actorId) {
+            await notifyMember({
+                recipientId: memberId,
+                type: "QUERY_ASSIGNED",
+                title: `${updated.name} assigned to you`,
+                body: updated.destination
+                    ? `${updated.destination} — by ${actorName ?? "a teammate"}`
+                    : `by ${actorName ?? "a teammate"}`,
+                link: "/dashboard/sales-query",
+            });
+        }
 
         revalidatePath("/dashboard/queries");
         revalidatePath("/dashboard/sales-query");

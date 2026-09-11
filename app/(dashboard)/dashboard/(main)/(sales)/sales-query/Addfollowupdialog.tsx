@@ -17,7 +17,7 @@ import {
     AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
     AlertDialogTrigger,
 } from "../../components/ui/alert-dialog";
-import { addFollowUp, deleteFollowUp, getMyFollowUpForQuery } from "./actions";
+import { addFollowUp, cancelFollowUp, getMyFollowUpForQuery } from "./actions";
 
 type FollowUpData = {
     id: string;
@@ -111,7 +111,7 @@ export function AddFollowUpDialog({ salesQueryId, leadName, children, onDone }: 
     function handleDelete() {
         if (!existing) return;
         startDelete(async () => {
-            const result = await deleteFollowUp(existing.id);
+            const result = await cancelFollowUp(existing.id);
             if (result.success) {
                 toast.success(result.message);
                 setOpen(false);

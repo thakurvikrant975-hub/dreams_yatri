@@ -14,7 +14,7 @@ import {
     AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "../../components/ui/alert-dialog";
 import { TableFilters, type FilterConfig } from "../../components/dashboard/Tablefilters";
-import { deleteFollowUp } from "../sales-query/actions";
+import { cancelFollowUp } from "../sales-query/actions";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
@@ -88,11 +88,11 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
         setDeletingId(id);
         startTransition(async () => {
             try {
-                await deleteFollowUp(id);
+                await cancelFollowUp(id);
                 setFollowUps(prev => prev.filter(fu => fu.id !== id));
-                toast.success("Follow-up deleted");
+                toast.success("Follow-up cancelled");
             } catch {
-                toast.error("Failed to delete follow-up");
+                toast.error("Failed to cancel follow-up");
             } finally {
                 setDeletingId(null);
             }
@@ -259,24 +259,24 @@ export function MyFollowUpsTable({ followUps: initialFollowUps }: Props) {
                                                     <AlertDialogContent className="bg-dashboard-base-100 border-dashboard-base-300 rounded-2xl">
                                                         <AlertDialogHeader>
                                                             <AlertDialogTitle className="text-dashboard-base-content">
-                                                                Delete Follow-Up?
+                                                                Cancel Follow-Up?
                                                             </AlertDialogTitle>
                                                             <AlertDialogDescription className="text-dashboard-base-content/55">
-                                                                This will permanently delete the follow-up for{" "}
+                                                                This will withdraw the follow-up for{" "}
                                                                 <strong className="text-dashboard-base-content">
                                                                     {fu.packageQuery.name}
-                                                                </strong>. This action cannot be undone.
+                                                                </strong>. It stays on record as cancelled.
                                                             </AlertDialogDescription>
                                                         </AlertDialogHeader>
                                                         <AlertDialogFooter>
                                                             <AlertDialogCancel className="rounded-xl border-dashboard-base-300 bg-dashboard-base-100 text-dashboard-base-content hover:bg-dashboard-base-200">
-                                                                Cancel
+                                                                Back
                                                             </AlertDialogCancel>
                                                             <AlertDialogAction
                                                                 className="rounded-xl bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
                                                                 onClick={() => handleDelete(fu.id)}
                                                             >
-                                                                Delete
+                                                                Cancel Follow-Up
                                                             </AlertDialogAction>
                                                         </AlertDialogFooter>
                                                     </AlertDialogContent>

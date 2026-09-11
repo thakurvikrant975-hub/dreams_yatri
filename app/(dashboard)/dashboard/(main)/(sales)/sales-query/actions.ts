@@ -128,6 +128,67 @@ export async function getMyTeamMembers(): Promise<SalesMember[]> {
     return _getSalesMembers(scope.ledTeamId);
 }
 
+export type FollowUpDisciplineRow = {
+    id: string;
+    name: string;
+    total: number;
+    pending: number;
+    completed: number;
+    missed: number;
+    rescheduled: number;
+    cancelled: number;
+    /** % of resolved (completed+missed) follow-ups that were completed rather
+     * than missed. Null when the exec has nothing resolved yet in range. */
+    completionRate: number | null;
+};
+
+/** Per-exec follow-up discipline for Team Leaders / Sales Managers — same
+ * roster scoping as getMyTeamMembers (own team, or company-wide for a Sales
+ * Manager). Sorted worst completion rate first, so the execs who most need
+ * a conversation surface at the top. */
+export async function getFollowUpDisciplineStats(days = 30): Promise<FollowUpDisciplineRow[]> {
+    if (!(await isSalesTeamLeader())) return [];
+
+    const members = await getMyTeamMembers();
+    if (members.length === 0) return [];
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const grouped = await db.queryFollowUp.groupBy({
+        by: ["createdById", "status"],
+        where: { createdById: { in: members.map((m) => m.id) }, createdAt: { gte: since } },
+        _count: { _all: true },
+    });
+
+    type Bucket = { pending: number; completed: number; missed: number; rescheduled: number; cancelled: number };
+    const byExec = new Map<string, Bucket>();
+    for (const row of grouped) {
+        if (!row.createdById) continue;
+        const bucket = byExec.get(row.createdById) ?? { pending: 0, completed: 0, missed: 0, rescheduled: 0, cancelled: 0 };
+        const count = row._count._all;
+        if (row.status === "PENDING") bucket.pending += count;
+        else if (row.status === "COMPLETED") bucket.completed += count;
+        else if (row.status === "MISSED") bucket.missed += count;
+        else if (row.status === "RESCHEDULED") bucket.rescheduled += count;
+        else if (row.status === "CANCELLED") bucket.cancelled += count;
+        byExec.set(row.createdById, bucket);
+    }
+
+    return members
+        .map((m) => {
+            const b = byExec.get(m.id) ?? { pending: 0, completed: 0, missed: 0, rescheduled: 0, cancelled: 0 };
+            const resolved = b.completed + b.missed;
+            return {
+                id: m.id,
+                name: m.name,
+                total: b.pending + b.completed + b.missed + b.rescheduled + b.cancelled,
+                ...b,
+                completionRate: resolved > 0 ? Math.round((b.completed / resolved) * 100) : null,
+            };
+        })
+        .sort((a, b) => (a.completionRate ?? 101) - (b.completionRate ?? 101));
+}
+
 /** Reassign a query to another member of the caller's own SalesTeam — or,
  * for a Sales Manager, to anyone on the sales floor, since she oversees
  * every team rather than one.
@@ -354,7 +415,7 @@ export async function getMyFollowUpForQuery(packageQueryId: string): Promise<Fol
     if (!teamMemberId) return null;
 
     return db.queryFollowUp.findFirst({
-        where: { packageQueryId, createdById: teamMemberId },
+        where: { packageQueryId, createdById: teamMemberId, status: "PENDING" },
     }) as Promise<FollowUp | null>;
 }
 
@@ -365,6 +426,7 @@ export async function getMyFollowUps(packageQueryId?: string) {
     return db.queryFollowUp.findMany({
         where: {
             createdById: teamMemberId,
+            status: "PENDING",
             ...(packageQueryId ? { packageQueryId } : {}),
         },
         orderBy: [{ followUpAt: "asc" }, { createdAt: "desc" }],
@@ -379,7 +441,24 @@ export async function getMyFollowUps(packageQueryId?: string) {
     });
 }
 
-// ── Follow-up — upsert (one per exec per query) ───────────────────────────────
+/** Full follow-up history for a query — every exec, every instance, in the
+ * order they were created. Chained reschedules (previousId) sit next to each
+ * other because of that ordering, so the UI can render it as a single feed
+ * without re-walking the chain itself. This is what backs the per-query
+ * "did the exec actually work this" timeline. */
+export async function getFollowUpHistoryForQuery(packageQueryId: string): Promise<FollowUp[]> {
+    return db.queryFollowUp.findMany({
+        where: { packageQueryId },
+        orderBy: { createdAt: "asc" },
+    }) as Promise<FollowUp[]>;
+}
+
+// ── Follow-up — append-only lifecycle (one growing chain per exec per query) ──
+// Each row is a follow-up *instance*, never overwritten. Editing the note on
+// a still-PENDING row updates it in place (same instance); changing the due
+// time closes it out as RESCHEDULED and opens a new PENDING row chained to
+// it via previousId — so the full history survives every reschedule instead
+// of being clobbered by the next update, the way the old upsert did.
 
 const followUpSchema = z.object({
     note:       z.string().max(2000, "Note too long").optional(),
@@ -401,25 +480,46 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
 
         const existing = teamMemberId
             ? await db.queryFollowUp.findFirst({
-                where:  { packageQueryId, createdById: teamMemberId },
-                select: { id: true },
+                where:  { packageQueryId, createdById: teamMemberId, status: "PENDING" },
+                select: { id: true, followUpAt: true },
             })
             : null;
 
-        if (existing) {
+        const nextFollowUpAt = parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null;
+        const isReschedule = Boolean(
+            existing && existing.followUpAt?.getTime() !== nextFollowUpAt?.getTime(),
+        );
+
+        if (existing && !isReschedule) {
+            // Same due time (or still none) — just editing the note on the
+            // current instance, not resolving or rescheduling it.
             await db.queryFollowUp.update({
                 where: { id: existing.id },
-                data: {
-                    note:       parsed.data.note ?? "",
-                    followUpAt: parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
-                },
+                data:  { note: parsed.data.note ?? "" },
             });
+        } else if (existing && isReschedule) {
+            await db.$transaction([
+                db.queryFollowUp.update({
+                    where: { id: existing.id },
+                    data:  { status: "RESCHEDULED", resolvedAt: new Date() },
+                }),
+                db.queryFollowUp.create({
+                    data: {
+                        packageQueryId,
+                        note:          parsed.data.note ?? "",
+                        followUpAt:    nextFollowUpAt,
+                        createdById:   teamMemberId,
+                        createdByName: teamMemberName,
+                        previousId:    existing.id,
+                    },
+                }),
+            ]);
         } else {
             await db.queryFollowUp.create({
                 data: {
                     packageQueryId,
                     note:          parsed.data.note ?? "",
-                    followUpAt:    parsed.data.followUpAt ? new Date(parsed.data.followUpAt) : null,
+                    followUpAt:    nextFollowUpAt,
                     createdById:   teamMemberId,
                     createdByName: teamMemberName,
                 },
@@ -454,20 +554,80 @@ export async function addFollowUp(packageQueryId: string, formData: FormData): P
 
         await logTimeline(
             packageQueryId,
-            existing ? `📞 Follow-up updated` : `📞 Follow-up logged`,
+            !existing ? `📞 Follow-up logged` : isReschedule ? `🔁 Follow-up rescheduled` : `📞 Follow-up updated`,
             teamMemberId ?? undefined,
             teamMemberName ?? undefined,
         );
 
         revalidatePath("/dashboard/sales-query");
-        return { success: true, data: undefined, message: existing ? "Follow-up updated" : "Follow-up added" };
+        return { success: true, data: undefined, message: !existing ? "Follow-up added" : isReschedule ? "Follow-up rescheduled" : "Follow-up updated" };
     } catch (err) {
         console.error("addFollowUp error:", err);
         return { success: false, message: "Failed to save follow-up" };
     }
 }
 
+// ── Resolve follow-up — completed or cancelled ────────────────────────────────
+
+async function resolveFollowUp(
+    followUpId: string,
+    status: "COMPLETED" | "CANCELLED",
+    resolutionNote?: string,
+): Promise<ActionResult> {
+    try {
+        const { teamMemberId, teamMemberName } = await getCurrentActor();
+
+        const followUp = await db.queryFollowUp.findUnique({
+            where:  { id: followUpId },
+            select: { id: true, packageQueryId: true, createdById: true, status: true },
+        });
+
+        if (!followUp) return { success: false, message: "Follow-up not found" };
+        if (followUp.createdById !== teamMemberId) return { success: false, message: "You can only resolve your own follow-ups" };
+        if (followUp.status !== "PENDING") return { success: false, message: "This follow-up was already resolved" };
+
+        await db.queryFollowUp.update({
+            where: { id: followUpId },
+            data:  { status, resolvedAt: new Date(), resolutionNote: resolutionNote?.trim() || null },
+        });
+
+        await db.package_queries.update({
+            where: { id: followUp.packageQueryId },
+            data:  { nextFollowUpAt: null },
+        });
+
+        await logTimeline(
+            followUp.packageQueryId,
+            status === "COMPLETED" ? `✅ Follow-up completed` : `🗑️ Follow-up cancelled`,
+            teamMemberId ?? undefined,
+            teamMemberName ?? undefined,
+        );
+
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: status === "COMPLETED" ? "Follow-up marked done" : "Follow-up cancelled" };
+    } catch (err) {
+        console.error("resolveFollowUp error:", err);
+        return { success: false, message: "Failed to update follow-up" };
+    }
+}
+
+/** Exec acted on the follow-up — call made, outcome logged. Ends the chain
+ * (no new PENDING row) — start a fresh follow-up separately if another
+ * touchpoint is needed. */
+export async function completeFollowUp(followUpId: string, resolutionNote?: string): Promise<ActionResult> {
+    return resolveFollowUp(followUpId, "COMPLETED", resolutionNote);
+}
+
+/** Exec withdrew the follow-up without ever resolving it (added by mistake,
+ * no longer relevant) — distinct from letting it silently go MISSED. */
+export async function cancelFollowUp(followUpId: string, resolutionNote?: string): Promise<ActionResult> {
+    return resolveFollowUp(followUpId, "CANCELLED", resolutionNote);
+}
+
 // ── Delete follow-up ──────────────────────────────────────────────────────────
+// True deletion — removes the row entirely rather than resolving it. Reserved
+// for genuine mistakes (wrong query); prefer completeFollowUp/cancelFollowUp
+// for anything that should stay in the discipline history.
 
 export async function deleteFollowUp(followUpId: string): Promise<ActionResult> {
     try {

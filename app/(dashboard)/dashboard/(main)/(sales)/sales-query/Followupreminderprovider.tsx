@@ -9,7 +9,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { getMyFollowUps, addFollowUp, deleteFollowUp, getSalesQueryById } from "./actions";
+import { getMyFollowUps, addFollowUp, completeFollowUp, getSalesQueryById } from "./actions";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import type { PackageQueryType, PackageRequirements } from "../../(marketing)/queries/actions";
 
@@ -246,11 +246,12 @@ export function FollowUpReminderProvider() {
         if (rescheduleTargetId === id) { setRescheduleTargetId(null); setRescheduleAt(""); }
     }
 
-    // Clear for good — deletes the follow-up so it never comes back.
+    // Clear for good — marks the follow-up done so it never comes back, but
+    // (unlike a delete) stays on record for discipline tracking.
     async function handleClear(fu: FollowUp) {
         setProcessing(fu.id, true);
         try {
-            const result = await deleteFollowUp(fu.id);
+            const result = await completeFollowUp(fu.id);
             if (result.success) {
                 toast.success("Follow-up cleared");
                 setDueQueue(prev => prev.filter(f => f.id !== fu.id));

@@ -1,12 +1,14 @@
 // app/dashboard/sales-query/my-followups/page.tsx
 import { Suspense } from "react";
-import { CalendarClock, Clock, AlertCircle, CalendarDays } from "lucide-react";
+import Link from "next/link";
+import { CalendarClock, Clock, AlertCircle, CalendarDays, ShieldCheck } from "lucide-react";
 import { Skeleton } from "../../components/ui/skeleton";
+import { Button } from "../../components/ui/button";
 import {
     Breadcrumb, BreadcrumbItem, BreadcrumbLink,
     BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "../../components/ui/breadcrumb";
-import { getMyFollowUps } from "../sales-query/actions";
+import { getMyFollowUps, isSalesTeamLeader } from "../sales-query/actions";
 import { MyFollowUpsTable } from "./Myfollowupstable";
 import { isPast, isToday } from "date-fns";
 import type { Metadata } from "next";
@@ -73,7 +75,9 @@ async function MyFollowUpsContent() {
     );
 }
 
-export default function MyFollowUpsPage() {
+export default async function MyFollowUpsPage() {
+    const isTeamLead = await isSalesTeamLeader();
+
     return (
         <div className="space-y-6">
             <Breadcrumb>
@@ -92,11 +96,21 @@ export default function MyFollowUpsPage() {
                 </BreadcrumbList>
             </Breadcrumb>
 
-            <PageHeader
-                title="My Follow-Ups"
-                description="All follow-ups logged by you"
-                icon={CalendarClock}
-            />
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+                <PageHeader
+                    title="My Follow-Ups"
+                    description="All follow-ups logged by you"
+                    icon={CalendarClock}
+                />
+                {isTeamLead && (
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                        <Link href="/dashboard/follow-ups/discipline">
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Team Discipline
+                        </Link>
+                    </Button>
+                )}
+            </div>
 
             <Suspense
                 fallback={

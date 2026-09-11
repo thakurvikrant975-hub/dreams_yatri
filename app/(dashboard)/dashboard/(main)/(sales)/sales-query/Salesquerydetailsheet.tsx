@@ -54,6 +54,16 @@ const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
     DECLINED:   "bg-red-500",
 };
 
+/** Follow-Up History status pills — label, badge classes, and the verb used
+ * next to `resolvedAt` ("Completed 2h ago", "Missed 1d ago", ...). */
+const FOLLOWUP_STATUS_META: Record<FollowUpItem["status"], { label: string; className: string; pastTense: string }> = {
+    PENDING:     { label: "Pending",     className: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-950/20 dark:border-amber-900",   pastTense: "Logged" },
+    COMPLETED:   { label: "Completed",   className: "text-green-700 bg-green-50 border-green-200 dark:text-green-400 dark:bg-green-950/20 dark:border-green-900",   pastTense: "Completed" },
+    RESCHEDULED: { label: "Rescheduled", className: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-950/20 dark:border-blue-900",         pastTense: "Rescheduled" },
+    MISSED:      { label: "Missed",      className: "text-red-700 bg-red-50 border-red-200 dark:text-red-400 dark:bg-red-950/20 dark:border-red-900",               pastTense: "Missed" },
+    CANCELLED:   { label: "Cancelled",   className: "text-muted-foreground bg-muted border-border",                                                                  pastTense: "Cancelled" },
+};
+
 /** What the sales team sees in place of the query's real source. Every
  * other page that reads `source` (marketing's Queries pages, the reports
  * tab) still shows the true value — this sheet alone reframes it for execs
@@ -262,6 +272,9 @@ type FollowUpItem = {
     id: string;
     note: string;
     followUpAt: Date | null;
+    status: "PENDING" | "COMPLETED" | "RESCHEDULED" | "MISSED" | "CANCELLED";
+    resolvedAt: Date | null;
+    resolutionNote: string | null;
     createdAt: Date;
     createdById: string | null;
     createdByName: string | null;
@@ -939,37 +952,47 @@ export function SalesQueryDetailSheet({
                             </>
                         )}
 
-                        {/* Follow-Ups — each person sees their own (filtered server-side) */}
+                        {/* Follow-Ups — the live, actionable one(s); each person sees
+                            their own (filtered server-side), scoped to whichever are
+                            still PENDING. Resolved/rescheduled/missed instances move
+                            to the Follow-Up History section below instead. */}
                         <section>
-                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-                                My Follow-Ups ({query.followUps?.length ?? 0})
-                            </h3>
-                            <div className="space-y-2 mb-3">
-                                {(query.followUps ?? []).length === 0 && (
-                                    <p className="text-xs text-muted-foreground italic">
-                                        No follow-ups logged yet. Add one to track your progress.
-                                    </p>
-                                )}
-                                {(query.followUps ?? []).map((fu) => (
-                                    <div key={fu.id} className="rounded-lg border bg-card p-3 space-y-1.5">
-                                        <p className="text-sm leading-relaxed">{fu.note}</p>
-                                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                                            <p className="text-[10px] text-muted-foreground">
-                                                {formatDistanceToNow(new Date(fu.createdAt), { addSuffix: true })}
-                                                {fu.createdByName && (
-                                                    <span className="ml-1 font-medium">by {fu.createdByName}</span>
-                                                )}
-                                            </p>
-                                            {fu.followUpAt && (
-                                                <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded px-1.5 py-0.5">
-                                                    <Calendar className="h-2.5 w-2.5" />
-                                                    {format(new Date(fu.followUpAt), "dd MMM, hh:mm a")}
-                                                </span>
+                            {(() => {
+                                const pendingFollowUps = (query.followUps ?? []).filter((fu) => fu.status === "PENDING");
+                                return (
+                                    <>
+                                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                                            My Follow-Ups ({pendingFollowUps.length})
+                                        </h3>
+                                        <div className="space-y-2 mb-3">
+                                            {pendingFollowUps.length === 0 && (
+                                                <p className="text-xs text-muted-foreground italic">
+                                                    No follow-ups logged yet. Add one to track your progress.
+                                                </p>
                                             )}
+                                            {pendingFollowUps.map((fu) => (
+                                                <div key={fu.id} className="rounded-lg border bg-card p-3 space-y-1.5">
+                                                    <p className="text-sm leading-relaxed">{fu.note}</p>
+                                                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                        <p className="text-[10px] text-muted-foreground">
+                                                            {formatDistanceToNow(new Date(fu.createdAt), { addSuffix: true })}
+                                                            {fu.createdByName && (
+                                                                <span className="ml-1 font-medium">by {fu.createdByName}</span>
+                                                            )}
+                                                        </p>
+                                                        {fu.followUpAt && (
+                                                            <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded px-1.5 py-0.5">
+                                                                <Calendar className="h-2.5 w-2.5" />
+                                                                {format(new Date(fu.followUpAt), "dd MMM, hh:mm a")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    </>
+                                );
+                            })()}
 
                             {!isClosed && (
                                 <AddFollowUpDialog
@@ -982,6 +1005,57 @@ export function SalesQueryDetailSheet({
                                         Add Follow-Up
                                     </Button>
                                 </AddFollowUpDialog>
+                            )}
+                        </section>
+
+                        <Separator />
+
+                        {/* Follow-Up History — every instance ever logged on this query,
+                            across every exec, oldest first: created → due → what the
+                            exec actually did about it (completed / rescheduled / missed
+                            / cancelled). The discipline record for this query. */}
+                        <section>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                                Follow-Up History ({query.followUps?.length ?? 0})
+                            </h3>
+                            {(query.followUps ?? []).length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">
+                                    No follow-ups logged yet.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {[...(query.followUps ?? [])].reverse().map((fu) => {
+                                        const meta = FOLLOWUP_STATUS_META[fu.status];
+                                        return (
+                                            <div key={fu.id} className="rounded-lg border bg-card p-3 space-y-1.5">
+                                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                    <span className={cn("inline-flex items-center gap-1 text-[10px] font-medium rounded px-1.5 py-0.5 border", meta.className)}>
+                                                        {meta.label}
+                                                    </span>
+                                                    {fu.followUpAt && (
+                                                        <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                                            <Calendar className="h-2.5 w-2.5" />
+                                                            Due {format(new Date(fu.followUpAt), "dd MMM, hh:mm a")}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {fu.note && <p className="text-sm leading-relaxed">{fu.note}</p>}
+                                                {fu.resolutionNote && (
+                                                    <p className="text-xs text-muted-foreground italic">"{fu.resolutionNote}"</p>
+                                                )}
+                                                <p className="text-[10px] text-muted-foreground">
+                                                    Logged {formatDistanceToNow(new Date(fu.createdAt), { addSuffix: true })}
+                                                    {fu.createdByName && <span className="ml-1 font-medium">by {fu.createdByName}</span>}
+                                                    {fu.resolvedAt && fu.status !== "PENDING" && (
+                                                        <span className="ml-1">
+                                                            · {meta.pastTense} {formatDistanceToNow(new Date(fu.resolvedAt), { addSuffix: true })}
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </section>
 

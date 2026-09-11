@@ -55,6 +55,9 @@ type SalesQueryWithDetails = SalesQueryRow & {
         id: string;
         note: string;
         followUpAt: Date | null;
+        status: "PENDING" | "COMPLETED" | "RESCHEDULED" | "MISSED" | "CANCELLED";
+        resolvedAt: Date | null;
+        resolutionNote: string | null;
         createdAt: Date;
         createdById: string | null;
         createdByName: string | null;
@@ -378,17 +381,12 @@ export function SalesQueriesTable({
     ).length;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    // Every status bucketed exactly once, so the six breakdown cards sum to totalCount.
     const totalCount = queries.length;
-    // New today = assigned to this user today (or created today if no assignedAt)
+    // Today = assigned to this user today (or created today if no assignedAt)
     const newToday = queries.filter(q => {
         const dateToCheck = q.assignedAt ?? q.createdAt;
         return isToday(new Date(dateToCheck));
     }).length;
-
-    const newCount = queries.filter(q =>
-        q.status === "SUBMITTED" || q.status === "VERIFIED" || q.status === "ASSIGNED",
-    ).length;
 
     const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
@@ -880,22 +878,23 @@ export function SalesQueriesTable({
                     </div>
                 </div>
 
-                {/* Stats — every status bucketed exactly once, so New + In Progress +
-                    Follow Up + Package Sent + Converted + Closed always sums to Total. */}
+                {/* Stats — In Progress + Follow Up + Package Sent + Converted + Closed
+                    always sums to Total. "Today" is a cross-cutting count (assigned
+                    today), not part of that status-bucket sum. */}
                 <StatGrid cols={7}>
                     <StatCard
                         label="Total Queries"
                         value={totalCount}
-                        sub={`${rangeLabel} · ${newToday} new today`}
+                        sub={rangeLabel}
                         icon={Inbox}
                         iconText="text-dashboard-primary"
                     />
                     <StatCard
-                        label="New"
-                        value={newCount}
+                        label="Today"
+                        value={newToday}
                         icon={Send}
                         iconText="text-dashboard-info"
-                        muted={newCount === 0}
+                        muted={newToday === 0}
                     />
                     <StatCard
                         label="In Progress"
