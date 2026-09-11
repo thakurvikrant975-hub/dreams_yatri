@@ -4844,3 +4844,313 @@ model custom_itinerary_stays {
   @@unique([itineraryId, stayOptionId])
   @@index([stayOptionId])
 }
+
+// ─── Google Ads mirror ───────────────────────────────────────────────────────
+// What the Google Ads API says about our ad account, copied by a scheduled
+// sync so reports can join spend to leads (package_queries.ads*) and bookings.
+// Written only by the sync (app/lib/ads/google), read by the ads dashboard.
+// Plan of record: docs/ads-analytics/ads-analytics-plan.md, Steps 2–5.
+//
+// Conventions for every model below:
+//   • Keys are Google's own ids, as text — they arrive as strings, are never
+//     summed, and make every sync an idempotent upsert. VarChar(32) matches
+//     package_queries.adsCampaignId / adsAdGroupId / adsCreativeId, so the lead
+//     join needs no cast.
+//   • Money is integer micros (1 rupee = 1,000,000), converted only for display.
+//   • Report dates are @db.Date in the ad account's own timezone (Asia/Calcutta
+//     for ours) — never a timestamp, which is where off-by-one-day bugs live.
+//   • Google's enums (status, channel type…) are stored as text, not Postgres
+//     enums: Google adds values between API versions, and a sync must not fail
+//     on one it hasn't seen.
+//   • Nothing is ever deleted. A campaign removed in Google keeps its row, with
+//     status REMOVED, because its spend is still history.
+//   • Google-specific tables, not generic ads_* ones: Meta's hierarchy is
+//     campaign → ad set → ad, and its numeric ids could in principle collide
+//     with Google's. Meta gets its own tables; reports union the two.
+//   • Deliberately NO foreign key from package_queries to these tables. A lead
+//     can name a campaign the sync hasn't seen yet, or one garbled in a URL, and
+//     a foreign key would make that lead's insert fail. Losing a lead over a
+//     reporting link is the one thing this must never do — join by value.
+
+/// One Google Ads account — ours is a manager (MCC) with one ad account under it.
+model GoogleAdsAccount {
+  /// Customer id, digits only (235-260-8494 → "2352608494").
+  id           String   @id @db.VarChar(32)
+  /// The MCC this account sits under; null for the MCC itself.
+  managerId    String?  @db.VarChar(32)
+  name         String
+  isManager    Boolean  @default(false)
+  /// ISO 4217 — every micros amount under this account is in this currency.
+  currencyCode String   @db.VarChar(3)
+  /// IANA zone Google reports this account's dates in.
+  timeZone     String   @db.VarChar(64)
+  /// ENABLED, CANCELED, SUSPENDED, CLOSED.
+  status       String   @db.VarChar(32)
+  /// The last structure sync that saw it.
+  lastSeenAt   DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  campaigns GoogleAdsCampaign[]
+  budgets   GoogleAdsBudget[]
+
+  @@map("google_ads_accounts")
+}
+
+/// A campaign budget. Usually one per campaign; `isShared` ones span several.
+model GoogleAdsBudget {
+  id                String   @id @db.VarChar(32)
+  accountId         String   @db.VarChar(32)
+  name              String?
+  /// The daily amount, for period DAILY. Google may spend up to 2× this on a
+  /// given day, capped at ~30.4× across a month — pace against the month.
+  amountMicros      BigInt?
+  /// For a fixed total over the campaign's run instead of a daily amount.
+  totalAmountMicros BigInt?
+  /// DAILY or CUSTOM_PERIOD.
+  period            String   @db.VarChar(32)
+  /// STANDARD or ACCELERATED.
+  deliveryMethod    String   @db.VarChar(32)
+  isShared          Boolean  @default(false)
+  /// ENABLED or REMOVED.
+  status            String   @db.VarChar(32)
+  lastSeenAt        DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  account   GoogleAdsAccount         @relation(fields: [accountId], references: [id])
+  campaigns GoogleAdsCampaign[]
+  history   GoogleAdsBudgetHistory[]
+
+  @@index([accountId])
+  @@map("google_ads_budgets")
+}
+
+/**
+ * Every amount a budget has had, and when we saw it change.
+ *
+ * The API only says what a budget is *now*, and every report needs what it
+ * *was* — "spend against budget on 12 August" is meaningless if the budget was
+ * raised on the 20th. The sync opens a row when the amount it reads differs
+ * from the open one, and closes that one. `validFrom` is when the sync first
+ * saw the new amount, so it lags the real change by up to a sync interval.
+ */
+model GoogleAdsBudgetHistory {
+  id                String    @id @default(cuid())
+  budgetId          String    @db.VarChar(32)
+  amountMicros      BigInt?
+  totalAmountMicros BigInt?
+  validFrom         DateTime
+  /// Null while this is the current amount.
+  validTo           DateTime?
+
+  budget GoogleAdsBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, validFrom])
+  @@map("google_ads_budget_history")
+}
+
+model GoogleAdsCampaign {
+  id                  String    @id @db.VarChar(32)
+  accountId           String    @db.VarChar(32)
+  budgetId            String?   @db.VarChar(32)
+  name                String
+  /// ENABLED, PAUSED, REMOVED.
+  status              String    @db.VarChar(32)
+  /// SEARCH, PERFORMANCE_MAX, … — PMax has asset groups, not ad groups, so its
+  /// leads carry a campaign but never an ad group.
+  channelType         String    @db.VarChar(32)
+  biddingStrategyType String?   @db.VarChar(64)
+  startDate           DateTime? @db.Date
+  endDate             DateTime? @db.Date
+  lastSeenAt          DateTime
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  account  GoogleAdsAccount          @relation(fields: [accountId], references: [id])
+  budget   GoogleAdsBudget?          @relation(fields: [budgetId], references: [id])
+  adGroups GoogleAdsAdGroup[]
+  daily    GoogleAdsCampaignDaily[]
+  hourly   GoogleAdsCampaignHourly[]
+
+  @@index([accountId, status])
+  @@index([budgetId])
+  @@map("google_ads_campaigns")
+}
+
+model GoogleAdsAdGroup {
+  id         String   @id @db.VarChar(32)
+  campaignId String   @db.VarChar(32)
+  name       String
+  /// ENABLED, PAUSED, REMOVED.
+  status     String   @db.VarChar(32)
+  /// SEARCH_STANDARD, …
+  type       String?  @db.VarChar(64)
+  lastSeenAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  campaign GoogleAdsCampaign       @relation(fields: [campaignId], references: [id])
+  ads      GoogleAdsAd[]
+  daily    GoogleAdsAdGroupDaily[]
+
+  @@index([campaignId, status])
+  @@map("google_ads_ad_groups")
+}
+
+/**
+ * An ad in an ad group. Keyed by both ids because Google's own key is
+ * `adGroupId~adId` — one ad can sit in more than one ad group. `id` is what
+ * the {creative} ValueTrack parameter puts on package_queries.adsCreativeId.
+ */
+model GoogleAdsAd {
+  adGroupId  String   @db.VarChar(32)
+  id         String   @db.VarChar(32)
+  /// RESPONSIVE_SEARCH_AD, …
+  type       String?  @db.VarChar(64)
+  /// ENABLED, PAUSED, REMOVED.
+  status     String   @db.VarChar(32)
+  /// The ad's first final URL — which landing page it sends people to.
+  finalUrl   String?
+  lastSeenAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  adGroup GoogleAdsAdGroup   @relation(fields: [adGroupId], references: [id])
+  daily   GoogleAdsAdDaily[]
+
+  @@id([adGroupId, id])
+  @@map("google_ads_ads")
+}
+
+/**
+ * One campaign, one day — the table most reports start from.
+ *
+ * Re-read and overwritten over a rolling window on every sync: Google restates
+ * cost and conversions after the fact (late conversions, invalid-click
+ * credits), so a recent day is never final. `syncedAt` says how fresh it is.
+ *
+ * `conversions` / `conversionsValue` are Google's own view — data-driven
+ * attribution, modelled conversions, reported on click date. Worth showing
+ * beside ours, never instead of it: leads, bookings and revenue come from our
+ * own tables, and Google's numbers stay out of CPL and ROAS.
+ */
+model GoogleAdsCampaignDaily {
+  campaignId                      String   @db.VarChar(32)
+  /// In the account's timezone.
+  date                            DateTime @db.Date
+  costMicros                      BigInt   @default(0)
+  impressions                     Int      @default(0)
+  clicks                          Int      @default(0)
+  conversions                     Decimal  @default(0) @db.Decimal(12, 2)
+  conversionsValue                Decimal  @default(0) @db.Decimal(14, 2)
+  /// Fractions 0–1, Search only. Ratios — never summed across campaigns or
+  /// days. Budget-lost is the share of impressions missed only because the
+  /// budget ran out: the case for raising it.
+  searchImpressionShare           Decimal? @db.Decimal(5, 4)
+  searchBudgetLostImpressionShare Decimal? @db.Decimal(5, 4)
+  searchRankLostImpressionShare   Decimal? @db.Decimal(5, 4)
+  syncedAt                        DateTime
+
+  campaign GoogleAdsCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, date])
+  @@index([date])
+  @@map("google_ads_campaign_daily")
+}
+
+model GoogleAdsAdGroupDaily {
+  adGroupId        String   @db.VarChar(32)
+  date             DateTime @db.Date
+  costMicros       BigInt   @default(0)
+  impressions      Int      @default(0)
+  clicks           Int      @default(0)
+  conversions      Decimal  @default(0) @db.Decimal(12, 2)
+  conversionsValue Decimal  @default(0) @db.Decimal(14, 2)
+  syncedAt         DateTime
+
+  adGroup GoogleAdsAdGroup @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+
+  @@id([adGroupId, date])
+  @@index([date])
+  @@map("google_ads_ad_group_daily")
+}
+
+model GoogleAdsAdDaily {
+  adGroupId        String   @db.VarChar(32)
+  adId             String   @db.VarChar(32)
+  date             DateTime @db.Date
+  costMicros       BigInt   @default(0)
+  impressions      Int      @default(0)
+  clicks           Int      @default(0)
+  conversions      Decimal  @default(0) @db.Decimal(12, 2)
+  conversionsValue Decimal  @default(0) @db.Decimal(14, 2)
+  syncedAt         DateTime
+
+  ad GoogleAdsAd @relation(fields: [adGroupId, adId], references: [adGroupId, id], onDelete: Cascade)
+
+  @@id([adGroupId, adId, date])
+  @@index([date])
+  @@map("google_ads_ad_daily")
+}
+
+/**
+ * One campaign, one hour of one day — "when in the day does the budget go".
+ * Campaign level only: hourly ad-group rows would be 24× the data for a
+ * question nobody asks at that grain. `hour` is 0–23, account timezone.
+ */
+model GoogleAdsCampaignHourly {
+  campaignId  String   @db.VarChar(32)
+  date        DateTime @db.Date
+  hour        Int      @db.SmallInt
+  costMicros  BigInt   @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  conversions Decimal  @default(0) @db.Decimal(12, 2)
+  syncedAt    DateTime
+
+  campaign GoogleAdsCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, date, hour])
+  @@index([date])
+  @@map("google_ads_campaign_hourly")
+}
+
+/**
+ * Every sync, whether it worked or not. A sync that silently stops looks
+ * exactly like a day with no spend — this is how the dashboard tells the two
+ * apart, and where a failure's reason is kept. Platform-neutral, so the Meta
+ * sync writes here too.
+ */
+model AdsSyncRun {
+  id          String        @id @default(cuid())
+  /// GOOGLE today; META later.
+  platform    String        @db.VarChar(16)
+  kind        AdsSyncKind
+  status      AdsSyncStatus @default(RUNNING)
+  startedAt   DateTime      @default(now())
+  finishedAt  DateTime?
+  /// For STATS: the report dates re-read, inclusive.
+  windowFrom  DateTime?     @db.Date
+  windowTo    DateTime?     @db.Date
+  rowsWritten Int           @default(0)
+  /// Per-table counts, API request ids — whatever explains the run later.
+  details     Json?
+  error       String?
+
+  @@index([platform, kind, startedAt])
+  @@map("ads_sync_runs")
+}
+
+enum AdsSyncKind {
+  /// Accounts, budgets, campaigns, ad groups, ads.
+  STRUCTURE
+  /// Daily and hourly metrics over a rolling window.
+  STATS
+}
+
+enum AdsSyncStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}

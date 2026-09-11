@@ -327,21 +327,45 @@ populated as before, and the lead report unchanged. Asserted by
 
 ---
 
-## Step 2 — Schema for the ads mirror
+## Step 2 — Schema for the ads mirror  ✅ COMPLETE (dev)
 
-One migration: `ads_account`, `ads_campaign`, `ads_ad_group`, `ads_ad`, `ads_campaign_budget`,
-`ads_campaign_budget_history`, `ads_daily_stats`, `ads_hourly_stats`, `ads_sync_run`.
+Migration `20260911130000_google_ads_mirror` — **11 new tables, 2 enums, nothing existing
+altered**. Applied to dev 2026-09-11; applied to production just before the sync code that
+writes it ships (safe in either order — nothing reads these tables until then).
 
-Four decisions that are expensive to change later:
+| Table | Grain |
+|---|---|
+| `google_ads_accounts` | one row per account (the MCC and the ad account under it) |
+| `google_ads_budgets` | one per campaign budget — daily amount, delivery, shared or not |
+| `google_ads_budget_history` | every amount a budget has had, `validFrom` → `validTo` |
+| `google_ads_campaigns` / `_ad_groups` / `_ads` | the hierarchy; ads keyed `adGroupId + id`, as Google keys them |
+| `google_ads_campaign_daily` | campaign × day — cost, clicks, impressions, Google's conversions, impression-share ratios |
+| `google_ads_ad_group_daily` / `_ad_daily` | the same, lower down, without the ratios |
+| `google_ads_campaign_hourly` | campaign × day × hour (0–23, account timezone) |
+| `ads_sync_runs` | every sync, successful or not — platform-neutral, Meta writes here too |
+
+Decisions that are expensive to change later (the full reasoning is in the schema's "Google
+Ads mirror" comment block):
 
 - **Money as `BigInt` micros**, converted at the display edge only.
-- **Report date as `@db.Date`**, never a timestamp — see principle 5.
-- **Google's own ids are the keys** (as `VarChar`, per Step 1a), which makes every upsert
-  idempotent.
-- **Soft delete via `lastSeenAt`** — a removed campaign must stay for history.
+- **Report date as `@db.Date`** in the account's timezone, never a timestamp — see principle 5.
+- **Google's own ids are the keys**, as `VarChar(32)` like the Step 1a lead columns, so every
+  sync is an idempotent upsert and the lead join needs no cast.
+- **Google's enums stored as text**, not Postgres enums — Google adds values between API
+  versions and a sync must not fail on one it hasn't seen.
+- **Nothing is deleted** — a removed campaign keeps its row, status `REMOVED`.
+- **Google-specific tables**, not the generic `ads_*` of the first draft: Meta's hierarchy is
+  campaign → ad *set* → ad, and its numeric ids could in principle collide with Google's.
+  Meta gets its own tables; reports union them.
+- **One daily table per level**, not one table with a level column: real foreign keys, clean
+  upsert keys, and the impression-share *ratios* exist only at campaign level, where they
+  can't be mis-summed from ad groups.
+- **No foreign key from `package_queries`** into any of it. A lead can name a campaign the
+  sync hasn't seen yet, or one garbled in a URL; a foreign key would make that lead's insert
+  fail. Join by value.
 
-`ads_campaign_budget_history` exists because the API exposes only the *current* budget, and
-every report needs "what was the budget on 12 August".
+Checked with a rolled-back round trip on dev: a re-sync overwrites rather than duplicates,
+micros and decimals survive exactly, and a report date stays the calendar day Google gave.
 
 ---
 
