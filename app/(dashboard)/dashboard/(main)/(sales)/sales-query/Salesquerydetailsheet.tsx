@@ -8,7 +8,7 @@ import {
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
     Package, CheckCircle2, FileText, Heart, Plus, Loader2, StickyNote,
-    MessageSquare, Pencil, Save,
+    MessageSquare, Pencil, Save, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -21,7 +21,7 @@ import {
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Badge } from "../../components/ui/badge";
 import {
-  QueryStatusBadge, QuerySourceBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
+  QueryStatusBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
@@ -50,6 +50,31 @@ const CALL_STATUS_DOT: Record<CallLogStatus, string> = {
     NOT_PICKED: "bg-yellow-500",
     DECLINED:   "bg-red-500",
 };
+
+/** What the sales team sees in place of the query's real source. Every
+ * other page that reads `source` (marketing's Queries pages, the reports
+ * tab) still shows the true value — this sheet alone reframes it for execs
+ * as "Google Lead", since a team that believes most of its leads are
+ * Google's highest-converting channel works them harder. Genuinely
+ * unattributed leads ("Other"/"Referral") stay labeled "Other" rather than
+ * being folded into that story. */
+function SalesFacingSourceBadge({ source }: { source: string }) {
+    const isOther = source === "OTHER" || source === "REFERRAL";
+    return (
+        <Badge
+            variant="outline"
+            className={cn(
+                "gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md",
+                isOther
+                    ? "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-600"
+                    : "bg-green-50 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700",
+            )}
+        >
+            {isOther ? <AlertCircle className="h-3 w-3 shrink-0" /> : <Globe className="h-3 w-3 shrink-0" />}
+            {isOther ? "Other" : "Google Lead"}
+        </Badge>
+    );
+}
 
 /** Explicitly Asia/Kolkata regardless of the viewer's own browser timezone —
  * matches CallLogDialog's formatIST. */
@@ -294,7 +319,7 @@ export function SalesQueryDetailSheet({
                         <div>
                             <SheetTitle className="text-lg">{query.name}</SheetTitle>
                             <SheetDescription className="flex items-center gap-2 mt-1">
-                                <QuerySourceBadge source={query.source as any} />
+                                <SalesFacingSourceBadge source={query.source} />
                                 <span className="text-muted-foreground">·</span>
                                 <span className="text-xs text-muted-foreground">
                                     {/* When the lead actually reached us, to the
