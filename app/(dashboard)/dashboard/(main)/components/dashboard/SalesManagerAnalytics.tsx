@@ -215,17 +215,21 @@ export function SalesManagerAnalytics({ data, from, to }: Props) {
   // team (not per matched member) plus each visible unassigned member's own
   // — a team's target doesn't shrink just because a search narrowed which of
   // its members are shown.
+  // Team-rostered members only — the org chart is Sales Manager → Team
+  // Leader → Sales Executive, so unassigned execs (shown separately, purely
+  // for awareness) never count toward these figures, matching
+  // getSalesTeamAnalytics' own companyTotals rule.
   const visibleTotals = useMemo(() => {
-    const members = [...visibleTeams.flatMap((t) => t.members), ...visibleUnassigned];
+    const members = visibleTeams.flatMap((t) => t.members);
     const visibleTeamIds = new Set(visibleTeams.map((t) => t.teamId));
-    const revenueTargets = [
-      ...data.teams.filter((t) => visibleTeamIds.has(t.teamId)).map((t) => t.teamRevenueTarget),
-      ...visibleUnassigned.map((m) => m.revenueTarget),
-    ].filter((v): v is number => v !== null);
-    const conversionTargets = [
-      ...data.teams.filter((t) => visibleTeamIds.has(t.teamId)).map((t) => t.teamConversionTarget),
-      ...visibleUnassigned.map((m) => m.conversionTarget),
-    ].filter((v): v is number => v !== null);
+    const revenueTargets = data.teams
+      .filter((t) => visibleTeamIds.has(t.teamId))
+      .map((t) => t.teamRevenueTarget)
+      .filter((v): v is number => v !== null);
+    const conversionTargets = data.teams
+      .filter((t) => visibleTeamIds.has(t.teamId))
+      .map((t) => t.teamConversionTarget)
+      .filter((v): v is number => v !== null);
     return {
       totalRevenue: members.reduce((s, m) => s + m.totalRevenue, 0),
       confirmedThisMonth: members.reduce((s, m) => s + m.confirmedThisMonth, 0),
@@ -235,7 +239,7 @@ export function SalesManagerAnalytics({ data, from, to }: Props) {
       revenueTarget: revenueTargets.length > 0 ? revenueTargets.reduce((a, b) => a + b, 0) : null,
       conversionTarget: conversionTargets.length > 0 ? conversionTargets.reduce((a, b) => a + b, 0) : null,
     };
-  }, [visibleTeams, visibleUnassigned, data.teams]);
+  }, [visibleTeams, data.teams]);
 
   const visibleRevenuePct = pctOf(visibleTotals.totalRevenue, visibleTotals.revenueTarget);
   const visibleBookingPct = pctOf(visibleTotals.confirmedThisMonth, visibleTotals.conversionTarget);

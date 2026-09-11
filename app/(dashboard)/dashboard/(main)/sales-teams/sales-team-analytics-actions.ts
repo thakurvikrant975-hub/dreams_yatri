@@ -37,6 +37,11 @@ export type TeamPerformance = {
 
 export type SalesTeamAnalytics = {
   teams: TeamPerformance[];
+  /** Sales-role staff not currently rostered onto any SalesTeam — real,
+   * un-zeroed performance numbers, shown purely for awareness. The org
+   * chart is Sales Manager → Team Leader → Sales Executive, so these
+   * members report to nobody in that chain; they're deliberately excluded
+   * from every figure in `companyTotals` below. */
   unassigned: MemberPerformance[];
   companyTotals: {
     confirmedThisMonth: number;
@@ -44,11 +49,12 @@ export type SalesTeamAnalytics = {
     queriesThisMonth: number;
     convertedThisMonth: number;
     pendingFollowUps: number;
-    /** Sum of every team's own target plus every unassigned member's target
-     * — never a member sum inside a team, since a team's target is set
-     * independently of its roster's individual ones (same rule the
-     * Sales Targets page uses). Null when nobody has a target set at all,
-     * so callers can tell "0" apart from "unset". */
+    /** Sum of every rostered team's own target — never a member sum inside
+     * a team (a team's target is set independently of its roster's
+     * individual ones, same rule the Sales Targets page uses), and never
+     * counting `unassigned` members' own targets (see that field's doc).
+     * Null when nobody has a target set at all, so callers can tell "0"
+     * apart from "unset". */
     revenueTarget: number | null;
     conversionTarget: number | null;
   };
@@ -205,25 +211,28 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
     };
   });
 
+  // Informational only — real numbers (not zeroed out, since the aggregation
+  // queries above are scoped to salesOrgIds which includes them), but never
+  // folded into companyTotals below: the org chart is Sales Manager → Team
+  // Leader → Sales Executive, and someone on no team reports to nobody in
+  // that chain.
   const unassigned = unassignedRaw.map(toPerf);
 
-  const totalQueriesThisMonth = [...byQueriesMember.values()].reduce((s, v) => s + v, 0);
-  const totalConvertedThisMonth = [...byConvertedMember.values()].reduce((s, v) => s + v, 0);
-
-  const targetRows = [...teamPerf.map((t) => ({ revenueTarget: t.teamRevenueTarget, conversionTarget: t.teamConversionTarget })), ...unassigned.map((m) => ({ revenueTarget: m.revenueTarget, conversionTarget: m.conversionTarget }))];
-  const sumTargets = (key: "revenueTarget" | "conversionTarget") => {
-    const set = targetRows.filter((r) => r[key] !== null);
-    return set.length > 0 ? set.reduce((s, r) => s + (r[key] ?? 0), 0) : null;
-  };
-
+  // Sum of the ROSTERED teams only — see the comment above.
   const companyTotals = {
-    confirmedThisMonth: [...byBookingMember.values()].reduce((s, g) => s + g._count._all, 0),
-    totalRevenue: [...byBookingMember.values()].reduce((s, g) => s + Number(g._sum.totalAmount ?? 0), 0),
-    queriesThisMonth: totalQueriesThisMonth,
-    convertedThisMonth: totalConvertedThisMonth,
-    pendingFollowUps: [...byPendingMember.values()].reduce((s, v) => s + v, 0),
-    revenueTarget: sumTargets("revenueTarget"),
-    conversionTarget: sumTargets("conversionTarget"),
+    confirmedThisMonth: teamPerf.reduce((s, t) => s + t.teamConfirmedThisMonth, 0),
+    totalRevenue: teamPerf.reduce((s, t) => s + t.teamTotalRevenue, 0),
+    queriesThisMonth: teamPerf.reduce((s, t) => s + t.teamQueriesThisMonth, 0),
+    convertedThisMonth: teamPerf.reduce((s, t) => s + t.teamConvertedThisMonth, 0),
+    pendingFollowUps: teamPerf.reduce((s, t) => s + t.teamPendingFollowUps, 0),
+    revenueTarget: (() => {
+      const set = teamPerf.map((t) => t.teamRevenueTarget).filter((v): v is number => v !== null);
+      return set.length > 0 ? set.reduce((a, b) => a + b, 0) : null;
+    })(),
+    conversionTarget: (() => {
+      const set = teamPerf.map((t) => t.teamConversionTarget).filter((v): v is number => v !== null);
+      return set.length > 0 ? set.reduce((a, b) => a + b, 0) : null;
+    })(),
   };
 
   return { teams: teamPerf, unassigned, companyTotals };
