@@ -1903,9 +1903,23 @@ export type StayOptionPrice = {
   /** What each night of this option costs, so a reviewer can see where an
    * option's total comes from instead of only what it adds up to — and
    * correct the one night that is wrong rather than the whole column.
-   * `overridden` marks a night costing has already hand-corrected. */
-  dayLines: { day: number; hotelName: string; roomName: string; total: number; overridden: boolean }[];
+   *
+   * The whole line, arithmetic included. This used to carry only the total,
+   * so a package quoted at two standards reached costing as a figure per
+   * night — no rooms × rate, no mattresses — while the same package quoted at
+   * one standard showed every term. The reviewer could see the day summary
+   * booking mattresses and nothing on the pricing side that charged for them.
+   *
+   * A night can have several lines (a second room type at the same hotel), so
+   * a night's figure is the sum of its lines, never the first one.
+   *
+   * `overridden` marks a night costing has already hand-corrected; `catalog`
+   * on such a line is what the night prices at without the correction, so the
+   * reviewer can see what the correction replaced. */
+  dayLines: StayOptionDayLine[];
 };
+
+export type StayOptionDayLine = BuilderHotelDayLine & { catalog?: BuilderHotelDayLine[] };
 
 export async function computeStayOptionPricing(packageId: string): Promise<StayOptionPrice[]> {
   const pkg = await db.custom_packages.findUnique({
@@ -1963,18 +1977,29 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
   const payingPax = payingPaxOf(pkg);
 
   const priced = await Promise.all(pkg.stayOptions.map(async (option) => {
-    const hotelPricing = await computeBuilderHotelPricing({
-      travelDate: travelDateIso, ...travellersOf(pkg),
-      days: option.stays.map((s) => ({
-        day: dayNumberOf.get(s.itineraryId) ?? 0,
-        roomPricingId: s.roomPricingId, roomsCount: s.roomsCount,
-        manualExtraBeds: s.manualExtraBeds, manualExtraBedRate: s.manualExtraBedRate,
-        extraRooms: parseRoomSelections(s.extraRooms),
-        manualHotelPricePerNight: s.manualHotelPricePerNight,
-        hotelPriceOverride: s.hotelPriceOverride,
-        ...splitManualHotelName(s.accommodation),
-      })),
-    });
+    const stayDays = option.stays.map((s) => ({
+      day: dayNumberOf.get(s.itineraryId) ?? 0,
+      roomPricingId: s.roomPricingId, roomsCount: s.roomsCount,
+      manualExtraBeds: s.manualExtraBeds, manualExtraBedRate: s.manualExtraBedRate,
+      extraRooms: parseRoomSelections(s.extraRooms),
+      manualHotelPricePerNight: s.manualHotelPricePerNight,
+      hotelPriceOverride: s.hotelPriceOverride,
+      ...splitManualHotelName(s.accommodation),
+    }));
+    const correctedDays = stayDays.filter((d) => d.hotelPriceOverride != null);
+    const [hotelPricing, catalogPricing] = await Promise.all([
+      computeBuilderHotelPricing({ travelDate: travelDateIso, ...travellersOf(pkg), days: stayDays }),
+      // The corrected nights again, as the catalog prices them. Display only —
+      // nothing here feeds a total. A correction line carries just the typed
+      // amount, so without this the reviewer checking a corrected night has
+      // nothing to check it against. Skipped when nothing is corrected.
+      correctedDays.length === 0
+        ? null
+        : computeBuilderHotelPricing({
+          travelDate: travelDateIso, ...travellersOf(pkg),
+          days: correctedDays.map((d) => ({ ...d, hotelPriceOverride: null })),
+        }),
+    ]);
 
     const hotelSubtotal = option.hotelSubtotalOverride ?? hotelPricing.hotelSubtotal;
     const composed = composePackagePrice({
@@ -2011,13 +2036,11 @@ export async function computeStayOptionPricing(packageId: string): Promise<StayO
       // Sits beside gapDays because it is the same kind of fact: a figure the
       // column is quoting that nobody actually set for these dates.
       baseRateDays: baseRateDays(hotelPricing.days),
-      dayLines: hotelPricing.days.map((l) => ({
-        day: l.day,
-        hotelName: l.hotelName,
-        roomName: l.roomName,
-        total: l.total,
-        overridden: l.overridden ?? false,
-      })),
+      dayLines: hotelPricing.days.map((l): StayOptionDayLine => (
+        l.overridden && catalogPricing
+          ? { ...l, catalog: catalogPricing.days.filter((c) => c.day === l.day) }
+          : l
+      )),
     };
   }));
 

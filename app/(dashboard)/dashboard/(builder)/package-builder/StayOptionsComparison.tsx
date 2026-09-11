@@ -18,10 +18,49 @@ import { AlertTriangle, Clock, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/app/lib/utils";
 import { getStayOptionComparison, setStayOptionDayPrice } from "./stay-options.actions";
+import { hotelGapLabel } from "./stay-diagnostics";
+import type { BuilderHotelDayLine } from "@/app/services/package-pricing.service";
 
 type Comparison = Awaited<ReturnType<typeof getStayOptionComparison>>;
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+/** One night's arithmetic, in the same words as the single-stay breakdown in
+ * CostingPricingPanel — "5 rooms × ₹1,800 + 2 mattresses × ₹600". A package
+ * quoted at two standards used to show only the figure here, so the reviewer
+ * saw mattresses booked on the day summary and nothing charging for them.
+ *
+ * On a corrected night `lines` are the catalog's lines for it, struck through
+ * with the figure they add up to: what the correction replaced. */
+function DayArithmetic({ lines, corrected }: { lines: BuilderHotelDayLine[]; corrected: boolean }) {
+  if (lines.length === 0) return null;
+  const several = lines.length > 1;
+  return (
+    <span className="block mt-0.5 space-y-0.5">
+      {lines.map((l, i) => (
+        <span key={i} className="block">
+          <span className={cn(
+            "block text-[10px] tabular-nums text-dashboard-base-content/60",
+            corrected && "line-through",
+          )}>
+            {i > 0 && "+ "}
+            {l.roomsNeeded} room{l.roomsNeeded !== 1 ? "s" : ""} × {inr(l.pricePerRoom)}
+            {l.mattresses > 0 && ` + ${l.mattresses} mattress${l.mattresses !== 1 ? "es" : ""} × ${inr(l.extraBedRate)}`}
+            {several && l.roomName ? ` · ${l.roomName}` : ""}
+          </span>
+          {!corrected && hotelGapLabel(l.gap) && (
+            <span className="block text-[10px] text-dashboard-warning">{hotelGapLabel(l.gap)}</span>
+          )}
+        </span>
+      ))}
+      {corrected && (
+        <span className="block text-[10px] tabular-nums text-dashboard-base-content/50">
+          catalog {inr(lines.reduce((sum, l) => sum + l.total, 0))}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function StayOptionsComparison({ packageId, canEdit = false, className }: {
   packageId: string;
@@ -127,10 +166,27 @@ export function StayOptionsComparison({ packageId, canEdit = false, className }:
                               option, and no way to tell which night made the
                               difference — or to correct just that night. */}
                           {(() => {
-                            const line = o.dayLines.find((l) => l.day === d.day);
+                            // Every line of the night, not the first: a second
+                            // room type at the same hotel is its own line, and
+                            // reading only the first showed a night at the
+                            // price of its primary room alone.
+                            const lines = o.dayLines.filter((l) => l.day === d.day);
+                            const overridden = lines.some((l) => l.overridden);
+                            const line = lines.length > 0
+                              ? { total: lines.reduce((sum, l) => sum + l.total, 0), overridden }
+                              : null;
                             const key = `${o.id}:${d.day}`;
+                            const catalog = lines.flatMap((l) => l.catalog ?? []);
+                            const breakdown = (
+                              <DayArithmetic
+                                lines={overridden ? catalog : lines}
+                                corrected={overridden}
+                              />
+                            );
                             if (editing === key) {
                               return (
+                                <>
+                                {breakdown}
                                 <input
                                   autoFocus
                                   type="text"
@@ -144,9 +200,12 @@ export function StayOptionsComparison({ packageId, canEdit = false, className }:
                                     if (e.key === "Escape") setEditing(null);
                                   }}
                                 />
+                                </>
                               );
                             }
                             return (
+                              <>
+                              {breakdown}
                               <span
                                 className={cn(
                                   "mt-0.5 flex items-center gap-1 text-[11px] tabular-nums",
@@ -162,6 +221,7 @@ export function StayOptionsComparison({ packageId, canEdit = false, className }:
                                 {line?.overridden && <span className="text-[9px] uppercase">corrected</span>}
                                 {canEdit && <Pencil size={9} className="opacity-50" />}
                               </span>
+                              </>
                             );
                           })()}
                         </>
@@ -185,6 +245,20 @@ export function StayOptionsComparison({ packageId, canEdit = false, className }:
           </tbody>
         </table>
       </div>
+
+      {/* The breakdown under this table prices the package's own stays, which
+          are the recommended option's. Said outright, or a reviewer reads the
+          other column's nights against the Hotels subtotal below and finds
+          they don't add up. */}
+      {options.some((o) => o.isRecommended) && (
+        <p className="px-3 py-2 text-[11px] text-dashboard-base-content/60 border-t border-dashboard-base-300">
+          The Hotels breakdown and price below are for{" "}
+          <span className="font-semibold text-dashboard-base-content">
+            {options.find((o) => o.isRecommended)!.label}
+          </span>
+          , the recommended option. The other options are priced in full in their column above.
+        </p>
+      )}
 
       {options.some((o) => o.baseRateDays.length > 0) && (
         <p className="px-3 py-2 text-[11px] text-dashboard-warning border-t border-dashboard-base-300">
