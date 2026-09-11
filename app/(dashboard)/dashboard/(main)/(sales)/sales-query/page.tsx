@@ -101,7 +101,7 @@ export default async function SalesQueryPage({
     const [isTeamLead, isManager] = await Promise.all([isSalesTeamLeader(), isSalesManager()]);
     const heading = isManager ? "All Queries" : isTeamLead ? "Team Queries" : "My Queries";
     const description = isManager
-        ? "Every query assigned to any executive, across every team"
+        ? "Every query assigned to your sales org — every team, plus unassigned executives"
         : isTeamLead ? "All queries assigned to your team" : "All queries assigned to you";
 
     return (

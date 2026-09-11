@@ -381,25 +381,28 @@ export function SalesQueriesTable({
     ).length;
 
     // ── Stats ─────────────────────────────────────────────────────────────────
-    const totalCount = queries.length;
+    // Off `filtered`, not the raw `queries` — the stat cards sit right above
+    // the filter row, and a search/status/assignee/destination filter that
+    // left the numbers unchanged read as broken.
+    const totalCount = filtered.length;
     // Today = assigned to this user today (or created today if no assignedAt)
-    const newToday = queries.filter(q => {
+    const newToday = filtered.filter(q => {
         const dateToCheck = q.assignedAt ?? q.createdAt;
         return isToday(new Date(dateToCheck));
     }).length;
 
-    const inProgress = queries.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
+    const inProgress = filtered.filter(q => isActiveStatus(q.status as SalesQueryStatus)).length;
 
-    const followUpCount = queries.filter(q => q.status === "FOLLOW_UP").length;
+    const followUpCount = filtered.filter(q => q.status === "FOLLOW_UP").length;
 
-    const packageSentCount = queries.filter(q =>
+    const packageSentCount = filtered.filter(q =>
         q.status === "PACKAGE_SENT" || q.status === "CLIENT_ACCEPTED"
         || q.status === "CLIENT_DECLINED" || q.status === "PAYMENT_INITIATED",
     ).length;
 
-    const bookedCount = queries.filter((q) => q.status === "CONVERTED").length;
+    const bookedCount = filtered.filter((q) => q.status === "CONVERTED").length;
 
-    const closedCount = queries.filter(q =>
+    const closedCount = filtered.filter(q =>
         q.status === "CLOSED" || q.status === "REJECTED",
     ).length;
 

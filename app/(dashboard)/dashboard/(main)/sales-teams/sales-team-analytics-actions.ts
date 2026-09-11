@@ -75,7 +75,12 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
   // Sales Manager's set-targets page would for that range.
   const { year: targetYear, month: targetMonth } = istYearMonth(rangeStart);
 
-  const [teams, bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, unassignedRaw, memberTargets, teamTargets] = await Promise.all([
+  // Roster first, then the aggregations scoped to it — "company totals" here
+  // used to mean "every assignedTo value on any query", which also swept in
+  // partner agencies, other departments' stray assignees, and former execs'
+  // old queries still sitting on their now-inactive id. A Sales Manager's
+  // own numbers should only ever be the sales org's own roster.
+  const [teams, unassignedRaw] = await Promise.all([
     db.salesTeam.findMany({
       include: {
         leader: { select: { id: true, name: true } },
@@ -83,12 +88,36 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       },
       orderBy: { name: "asc" },
     }),
+    // Sales-role staff not yet placed on a team — same population
+    // getSalesTargetsPageData treats as "unassigned", not just "anyone
+    // active with no team" (that also caught non-sales staff in other
+    // departments who happen to have salesTeamId null).
+    db.teamMember.findMany({
+      where: {
+        salesTeamId: null,
+        isActive: true,
+        OR: [
+          { teamRole: { name: { contains: "sales", mode: "insensitive" } } },
+          { teamRole: { name: { contains: "team leader", mode: "insensitive" } } },
+        ],
+        // Excludes the Sales Manager herself — "sales" matches "Sales
+        // Manager" too, and she shouldn't show up as one of her own
+        // (unassigned) executives.
+        NOT: { teamRole: { name: { contains: "manager", mode: "insensitive" } } },
+      },
+      select: { id: true, name: true, employeeId: true },
+    }),
+  ]);
+
+  const salesOrgIds = [...teams.flatMap((t) => t.members.map((m) => m.id)), ...unassignedRaw.map((m) => m.id)];
+
+  const [bookingsGrouped, queriesGrouped, convertedGrouped, pendingGrouped, memberTargets, teamTargets] = await Promise.all([
     db.booking.groupBy({
       by: ["currentAssigneeId"],
       where: {
         status: "CONFIRMED",
         createdAt: { gte: rangeStart, lte: rangeEnd },
-        currentAssigneeId: { not: null },
+        currentAssigneeId: { in: salesOrgIds },
       },
       _count: { _all: true },
       _sum: { totalAmount: true },
@@ -101,7 +130,7 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
         // team-leader-analytics-actions. A lead that came in overnight and
         // was handed over in the morning belongs to the morning.
         assignedAt: { gte: rangeStart, lte: rangeEnd },
-        assignedTo: { not: null },
+        assignedTo: { in: salesOrgIds },
       },
       _count: { _all: true },
     }),
@@ -110,7 +139,7 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       where: {
         deletedAt: null,
         assignedAt: { gte: rangeStart, lte: rangeEnd },
-        assignedTo: { not: null },
+        assignedTo: { in: salesOrgIds },
         status: { in: [...CONVERTED_STATUSES] },
       },
       _count: { _all: true },
@@ -119,14 +148,10 @@ export async function getSalesTeamAnalytics(fromStr?: string, toStr?: string): P
       by: ["assignedTo"],
       where: {
         deletedAt: null,
-        assignedTo: { not: null },
+        assignedTo: { in: salesOrgIds },
         status: { in: [...ACTIVE_PIPELINE_STATUSES] },
       },
       _count: { _all: true },
-    }),
-    db.teamMember.findMany({
-      where: { salesTeamId: null, isActive: true },
-      select: { id: true, name: true, employeeId: true },
     }),
     db.salesTarget.findMany({ where: { year: targetYear, month: targetMonth, teamMemberId: { not: null } } }),
     db.salesTarget.findMany({ where: { year: targetYear, month: targetMonth, salesTeamId: { not: null } } }),

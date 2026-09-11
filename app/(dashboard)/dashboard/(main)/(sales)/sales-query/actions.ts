@@ -10,7 +10,7 @@ import { db } from "@/app/lib/db";
 import { z } from "zod";
 import { Prisma } from "@/app/generated/prisma";
 import { tryCreateBookingFromConvertedQuery } from "@/app/lib/bookings/create-from-query";
-import { getLeaderScope, isSalesManagerRole } from "@/app/lib/sales-teams/leader-scope";
+import { getLeaderScope, isSalesManagerRole, getSalesOrgMemberIds } from "@/app/lib/sales-teams/leader-scope";
 
 // ── Import shared types from marketing actions ────────────────────────────────
 // Types are erased at runtime so this import is safe even across route groups.
@@ -283,15 +283,19 @@ export async function getSalesQueries(from?: string, to?: string): Promise<Sales
             select: { id: true },
         })).map((m) => m.id)
         : null;
+    // The whole sales org (every SalesTeam's roster + not-yet-placed
+    // sales-role staff), not "assigned to literally anyone" — that used to
+    // also sweep in partner-agency-assigned leads, other departments' stray
+    // assignees, and former execs' old queries. See getSalesOrgMemberIds.
+    const salesOrgIds = isManager ? await getSalesOrgMemberIds() : null;
 
     const queries = await db.package_queries.findMany({
         where: {
             deletedAt: null,
-            // Company-wide for a Sales Manager (still "assigned to someone" —
-            // an unassigned lead belongs to the marketing queue, not here),
-            // else the Team Leader's own team, else just this exec.
-            ...(isManager
-                ? { assignedTo: { not: null } }
+            // The Sales Manager's own org for a Sales Manager, else the Team
+            // Leader's own team, else just this exec.
+            ...(salesOrgIds
+                ? { assignedTo: { in: salesOrgIds } }
                 : teamMemberIds
                     ? { assignedTo: { in: teamMemberIds } }
                     : teamMemberId ? { assignedTo: teamMemberId } : {}),

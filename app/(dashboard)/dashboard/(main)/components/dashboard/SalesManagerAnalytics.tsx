@@ -189,12 +189,6 @@ export function SalesManagerAnalytics({ data, from, to }: Props) {
     ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${from}T00:00:00`))
     : `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(`${from}T00:00:00`))} – ${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${to}T00:00:00`))}`;
 
-  const companyRevenuePct = pctOf(data.companyTotals.totalRevenue, data.companyTotals.revenueTarget);
-  const companyBookingPct = pctOf(data.companyTotals.confirmedThisMonth, data.companyTotals.conversionTarget);
-  const companyConversionRate = data.companyTotals.queriesThisMonth > 0
-    ? Math.round((data.companyTotals.convertedThisMonth / data.companyTotals.queriesThisMonth) * 100)
-    : 0;
-
   const teamOptions = data.teams.map((t) => ({ label: t.teamName, value: t.teamId }));
 
   const visibleTeams = useMemo(() => {
@@ -213,6 +207,42 @@ export function SalesManagerAnalytics({ data, from, to }: Props) {
     const s = search.trim().toLowerCase();
     return s ? data.unassigned.filter((m) => m.name.toLowerCase().includes(s) || m.employeeId.toLowerCase().includes(s)) : data.unassigned;
   }, [data.unassigned, search, teamFilter]);
+
+  // The stat cards above the team list used to always read data.companyTotals
+  // — company-wide regardless of the team filter or search, so picking one
+  // team left the numbers at the top unchanged. Summed off whichever members
+  // are actually visible instead. Targets are summed once per still-visible
+  // team (not per matched member) plus each visible unassigned member's own
+  // — a team's target doesn't shrink just because a search narrowed which of
+  // its members are shown.
+  const visibleTotals = useMemo(() => {
+    const members = [...visibleTeams.flatMap((t) => t.members), ...visibleUnassigned];
+    const visibleTeamIds = new Set(visibleTeams.map((t) => t.teamId));
+    const revenueTargets = [
+      ...data.teams.filter((t) => visibleTeamIds.has(t.teamId)).map((t) => t.teamRevenueTarget),
+      ...visibleUnassigned.map((m) => m.revenueTarget),
+    ].filter((v): v is number => v !== null);
+    const conversionTargets = [
+      ...data.teams.filter((t) => visibleTeamIds.has(t.teamId)).map((t) => t.teamConversionTarget),
+      ...visibleUnassigned.map((m) => m.conversionTarget),
+    ].filter((v): v is number => v !== null);
+    return {
+      totalRevenue: members.reduce((s, m) => s + m.totalRevenue, 0),
+      confirmedThisMonth: members.reduce((s, m) => s + m.confirmedThisMonth, 0),
+      queriesThisMonth: members.reduce((s, m) => s + m.queriesThisMonth, 0),
+      convertedThisMonth: members.reduce((s, m) => s + m.convertedThisMonth, 0),
+      pendingFollowUps: members.reduce((s, m) => s + m.pendingFollowUps, 0),
+      revenueTarget: revenueTargets.length > 0 ? revenueTargets.reduce((a, b) => a + b, 0) : null,
+      conversionTarget: conversionTargets.length > 0 ? conversionTargets.reduce((a, b) => a + b, 0) : null,
+    };
+  }, [visibleTeams, visibleUnassigned, data.teams]);
+
+  const visibleRevenuePct = pctOf(visibleTotals.totalRevenue, visibleTotals.revenueTarget);
+  const visibleBookingPct = pctOf(visibleTotals.confirmedThisMonth, visibleTotals.conversionTarget);
+  const visibleConversionRate = visibleTotals.queriesThisMonth > 0
+    ? Math.round((visibleTotals.convertedThisMonth / visibleTotals.queriesThisMonth) * 100)
+    : 0;
+  const isFiltered = teamFilter !== "all" || search.trim() !== "";
 
   const execLeaderboard = useMemo(() => rankExecs(data), [data]);
   const teamLeaderboard = useMemo(() => rankTeams(data), [data]);
@@ -290,30 +320,34 @@ export function SalesManagerAnalytics({ data, from, to }: Props) {
         <DateRangePicker from={from} to={to} onFromChange={(v) => setRange(v, to)} onToChange={(v) => setRange(from, v)} />
       </div>
 
-      {/* ── Targets vs. actuals ──────────────────────────────────────────── */}
+      {/* ── Targets vs. actuals — reacts to the team filter / search below,
+          so picking one team narrows these down too instead of always
+          reading the whole floor's numbers. ─────────────────────────────── */}
       <StatGrid cols={4}>
-        <StatCard label="Revenue Target" value={data.companyTotals.revenueTarget !== null ? fmtCurrency(data.companyTotals.revenueTarget) : "—"} sub="This month, company-wide" icon={Target} />
+        <StatCard label="Revenue Target" value={visibleTotals.revenueTarget !== null ? fmtCurrency(visibleTotals.revenueTarget) : "—"} sub={isFiltered ? "For the current filter" : "This month, company-wide"} icon={Target} />
         <StatCard
-          label="Revenue Achieved" value={fmtCurrency(data.companyTotals.totalRevenue)} sub={rangeLabel} icon={IndianRupee}
-          trend={companyRevenuePct !== null ? { value: `${companyRevenuePct}%`, positive: companyRevenuePct >= 100 } : undefined}
+          label="Revenue Achieved" value={fmtCurrency(visibleTotals.totalRevenue)} sub={rangeLabel} icon={IndianRupee}
+          trend={visibleRevenuePct !== null ? { value: `${visibleRevenuePct}%`, positive: visibleRevenuePct >= 100 } : undefined}
         />
-        <StatCard label="Bookings Target" value={data.companyTotals.conversionTarget ?? "—"} sub="This month, company-wide" icon={CheckCircle2} />
+        <StatCard label="Bookings Target" value={visibleTotals.conversionTarget ?? "—"} sub={isFiltered ? "For the current filter" : "This month, company-wide"} icon={CheckCircle2} />
         <StatCard
-          label="Bookings Achieved" value={data.companyTotals.confirmedThisMonth} sub={rangeLabel} icon={TrendingUp}
-          trend={companyBookingPct !== null ? { value: `${companyBookingPct}%`, positive: companyBookingPct >= 100 } : undefined}
+          label="Bookings Achieved" value={visibleTotals.confirmedThisMonth} sub={rangeLabel} icon={TrendingUp}
+          trend={visibleBookingPct !== null ? { value: `${visibleBookingPct}%`, positive: visibleBookingPct >= 100 } : undefined}
         />
       </StatGrid>
 
       <StatGrid cols={4}>
-        <StatCard label="Queries" value={data.companyTotals.queriesThisMonth} icon={MessageCircleQuestion} sub={rangeLabel} />
-        <StatCard label="Converted" value={data.companyTotals.convertedThisMonth} icon={CheckCircle2} sub={rangeLabel} />
-        <StatCard label="Conversion Rate" value={`${companyConversionRate}%`} icon={Percent} sub="converted / queries" />
-        <StatCard label="Pending Follow-ups" value={data.companyTotals.pendingFollowUps} icon={Clock} sub="current backlog" />
+        <StatCard label="Queries" value={visibleTotals.queriesThisMonth} icon={MessageCircleQuestion} sub={rangeLabel} />
+        <StatCard label="Converted" value={visibleTotals.convertedThisMonth} icon={CheckCircle2} sub={rangeLabel} />
+        <StatCard label="Conversion Rate" value={`${visibleConversionRate}%`} icon={Percent} sub="converted / queries" />
+        <StatCard label="Pending Follow-ups" value={visibleTotals.pendingFollowUps} icon={Clock} sub="current backlog" />
       </StatGrid>
 
       <p className="flex items-center gap-1.5 text-xs text-dashboard-base-content/50">
         <Users className="size-3.5" />
-        {data.teams.length} sales team{data.teams.length !== 1 ? "s" : ""} · {data.unassigned.length} unassigned executive{data.unassigned.length !== 1 ? "s" : ""}
+        {isFiltered
+          ? `Showing ${visibleTeams.length} of ${data.teams.length} sales team${data.teams.length !== 1 ? "s" : ""}${visibleUnassigned.length > 0 ? ` · ${visibleUnassigned.length} unassigned executive${visibleUnassigned.length !== 1 ? "s" : ""}` : ""}`
+          : `${data.teams.length} sales team${data.teams.length !== 1 ? "s" : ""} · ${data.unassigned.length} unassigned executive${data.unassigned.length !== 1 ? "s" : ""}`}
       </p>
 
       <Tabs defaultValue="overview">

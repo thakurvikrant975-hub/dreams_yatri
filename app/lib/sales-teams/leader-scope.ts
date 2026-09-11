@@ -63,6 +63,37 @@ export async function isSalesManagerRole(): Promise<boolean> {
   return (effective?.member.teamRole?.name ?? "").trim().toLowerCase().includes("sales manager");
 }
 
+/** Every currently-active member of the sales org proper: everyone rostered
+ * onto a SalesTeam, plus sales-role staff not yet placed on one — the same
+ * population getSalesTargetsPageData already treats as "the sales floor".
+ *
+ * Deliberately narrower than "every assignedTo value that shows up on a
+ * query": that also picks up partner agencies, staff from other departments
+ * occasionally handed a lead, and former (now-inactive) execs whose old
+ * queries never got reassigned — none of which belong in a Sales Manager's
+ * own "all queries"/company-totals view. (getSalesMembers, used by the
+ * reassignment picker, is intentionally broader — an agency IS a valid
+ * assignment target there, just not part of what "my team" reports on.)
+ */
+export async function getSalesOrgMemberIds(): Promise<string[]> {
+  const members = await db.teamMember.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { salesTeamId: { not: null } },
+        { teamRole: { name: { contains: "sales", mode: "insensitive" } } },
+        { teamRole: { name: { contains: "team leader", mode: "insensitive" } } },
+      ],
+      // A "sales" role-name match also catches "Sales Manager" — the
+      // manager reporting on this roster shouldn't show up as one of her
+      // own (unassigned) executives.
+      NOT: { teamRole: { name: { contains: "manager", mode: "insensitive" } } },
+    },
+    select: { id: true },
+  });
+  return members.map((m) => m.id);
+}
+
 /** Same substring-match convention as isSalesManagerRole — gates who may
  * approve/reject a sales exec's manually-submitted payment proof on a
  * Package Booking. */
