@@ -7,6 +7,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
 import { Badge } from "../../components/ui/badge";
+import { Switch } from "../../components/ui/switch";
 import { ScrollArea } from "../../components/ui/scroll-area";
 import {
     Dialog, DialogContent, DialogHeader,
@@ -19,8 +20,9 @@ import {
     Users, MapPin, Hotel, Car, Zap, Wallet,
     Plus, X, AlertCircle, ChevronRight, ChevronLeft,
     CheckCircle2, CalendarDays, Loader2, Pencil, Heart,
+    Ticket, Plane, TrainFront, Check,
 } from "lucide-react";
-import { savePackageRequirements } from "./actions";
+import { savePackageRequirements, updateTicketDetails } from "./actions";
 import type { PackageQueryType, PackageRequirements, TravellerMember } from "../../(marketing)/queries/actions";
 import { getVehiclesWithRates, type VehicleFull } from "../../(cabs)/vehicles/actions";
 import { LocationSearchSelect } from "../../components/location/LocationSearchSelect";
@@ -101,18 +103,38 @@ const PRESET_ACTIVITIES = [
     { value: "ICE_SKATING", label: "Ice Skating" },
 ];
 
+// `bg`/`bgLight`/`ring` are spelled out in full (not built from `color` at
+// render time) — Tailwind's scanner needs the literal class strings to
+// appear somewhere in this file's source text to generate the CSS for them;
+// a runtime-interpolated `` `bg-${accent}` `` would compile to nothing.
 const TABS = [
-    { id: "travellers", label: "Travellers", icon: Users, color: "text-violet-600" },
-    { id: "journey", label: "Journey", icon: MapPin, color: "text-green-600" },
-    { id: "stay", label: "Stay", icon: Hotel, color: "text-purple-600" },
-    { id: "transport", label: "Transport", icon: Car, color: "text-orange-600" },
-    { id: "activities", label: "Activities", icon: Zap, color: "text-yellow-600" },
-    { id: "budget", label: "Budget", icon: Wallet, color: "text-red-600" },
+    { id: "travellers", label: "Travellers", desc: "Who's coming on this trip", icon: Users,
+      color: "text-dashboard-primary", bg: "bg-dashboard-primary", content: "text-dashboard-primary-content", bgLight: "bg-dashboard-primary/12", ring: "ring-dashboard-primary/30" },
+    { id: "journey", label: "Journey", desc: "Route, dates & destinations", icon: MapPin,
+      color: "text-dashboard-success", bg: "bg-dashboard-success", content: "text-dashboard-success-content", bgLight: "bg-dashboard-success/12", ring: "ring-dashboard-success/30" },
+    { id: "booking", label: "Ticket Booking", desc: "Flight or train, already booked?", icon: Ticket,
+      color: "text-dashboard-info", bg: "bg-dashboard-info", content: "text-dashboard-info-content", bgLight: "bg-dashboard-info/12", ring: "ring-dashboard-info/30" },
+    { id: "stay", label: "Stay", desc: "Accommodation & meals", icon: Hotel,
+      color: "text-dashboard-secondary", bg: "bg-dashboard-secondary", content: "text-dashboard-secondary-content", bgLight: "bg-dashboard-secondary/12", ring: "ring-dashboard-secondary/30" },
+    { id: "transport", label: "Transport", desc: "Local cabs & transfers", icon: Car,
+      color: "text-dashboard-warning", bg: "bg-dashboard-warning", content: "text-dashboard-warning-content", bgLight: "bg-dashboard-warning/12", ring: "ring-dashboard-warning/30" },
+    { id: "activities", label: "Activities", desc: "Experiences to include", icon: Zap,
+      color: "text-dashboard-accent", bg: "bg-dashboard-accent", content: "text-dashboard-accent-content", bgLight: "bg-dashboard-accent/12", ring: "ring-dashboard-accent/30" },
+    { id: "budget", label: "Budget", desc: "Customer's price range", icon: Wallet,
+      color: "text-dashboard-error", bg: "bg-dashboard-error", content: "text-dashboard-error-content", bgLight: "bg-dashboard-error/12", ring: "ring-dashboard-error/30" },
 ] as const;
 
 type TabId = typeof TABS[number]["id"];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Normalizes to Title Case as the exec types — lowercases everything first
+// so "JOHN SMITH" / "john Smith" / "john smith" all converge on "John Smith"
+// instead of preserving whatever casing was typed or pasted. Same pattern
+// Addquerydialog's own capitalizeWords uses.
+function capitalizeWords(s: string): string {
+    return s.toLowerCase().replace(/(^|\s)([a-z])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
 
 /** Rebuilds the per-traveller name/age list when adult/child/infant counts
  * change — preserves existing entries (matched by type, in order) so editing
@@ -271,8 +293,8 @@ function ToggleChip({
             className={[
                 "px-3 py-1.5 rounded-full text-xs font-medium border transition-all select-none cursor-pointer",
                 selected
-                    ? "bg-violet-100 text-violet-600 border-violet-600 shadow-sm"
-                    : "bg-background text-foreground border-border hover:border-primary/60 hover:bg-primary/5",
+                    ? "bg-dashboard-primary/10 text-dashboard-primary border-dashboard-primary shadow-sm"
+                    : "bg-dashboard-base-100 text-dashboard-base-content border-dashboard-base-300 hover:border-dashboard-primary/60 hover:bg-dashboard-primary/5",
             ].join(" ")}
         >
             {label}
@@ -314,17 +336,17 @@ function SpecialDemands({
     onChange: (v: string) => void;
 }) {
     return (
-        <div className="space-y-1.5 pt-4 mt-2 border-t border-dashed border-border/60">
-            <Label className="text-xs text-gray-700 flex items-center gap-1.5">
+        <div className="space-y-1.5 pt-4 mt-2 border-t border-dashed border-dashboard-base-300/60">
+            <Label className="text-xs text-dashboard-base-content/70 flex items-center gap-1.5">
                 <AlertCircle className="h-3 w-3" />
-                Special Demands <span className="text-muted-foreground font-normal">(optional)</span>
+                Special Demands <span className="text-dashboard-base-content/60 font-normal">(optional)</span>
             </Label>
             <Textarea
                 value={value}
                 onChange={e => onChange(e.target.value)}
                 placeholder="Any special requirements for this section..."
                 rows={2}
-                className="resize-none text-sm bg-gray-50/30 border-gray-200 focus-visible:ring-gray-300/50 placeholder:text-gray-400/70"
+                className="resize-none text-sm bg-dashboard-base-200/30 border-dashboard-base-300 focus-visible:ring-dashboard-primary/30 placeholder:text-dashboard-base-content/40"
             />
         </div>
     );
@@ -335,20 +357,25 @@ function SectionHeader({
     title,
     subtitle,
     color,
+    bg,
 }: {
     icon: React.ElementType;
     title: string;
     subtitle: string;
     color: string;
+    /** Light tint of `color` for the icon's own circle — same "colored
+     * tint behind a full-strength icon" pairing StatCard uses elsewhere in
+     * the dashboard, rather than a neutral gray disc. */
+    bg: string;
 }) {
     return (
         <div className="flex items-start gap-3 mb-5">
-            <div className="h-9 w-9 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                <Icon className={`h-4.5 w-4.5 ${color}`} />
+            <div className={`h-10 w-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`h-5 w-5 ${color}`} />
             </div>
             <div>
-                <h3 className="font-semibold text-base leading-tight">{title}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+                <h3 className="font-semibold text-base leading-tight text-dashboard-base-content">{title}</h3>
+                <p className="text-xs text-dashboard-base-content/60 mt-0.5">{subtitle}</p>
             </div>
         </div>
     );
@@ -368,10 +395,10 @@ function ToggleButton({
             type="button"
             onClick={onClick}
             className={[
-                "flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all",
+                "flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all cursor-pointer",
                 selected
-                    ? "bg-violet-400 text-primary-foreground border-violet-400 shadow-sm"
-                    : "bg-background text-muted-foreground border-border hover:border-primary/40 hover:text-foreground",
+                    ? "bg-dashboard-primary text-dashboard-primary-content border-dashboard-primary shadow-sm"
+                    : "bg-dashboard-base-100 text-dashboard-base-content/60 border-dashboard-base-300 hover:border-dashboard-primary/40 hover:text-dashboard-base-content",
             ].join(" ")}
         >
             {children}
@@ -443,6 +470,36 @@ function NumberField({
     );
 }
 
+// Formats a Date into the value a `datetime-local` input expects (local
+// time, no timezone suffix) — same helper as Addfollowupdialog's /
+// Salesquerydetailsheet's.
+function toDatetimeLocalValue(d: Date): string {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+const TICKET_TYPES = [
+    { label: "Train", value: "TRAIN", icon: TrainFront },
+    { label: "Flight", value: "FLIGHT", icon: Plane },
+];
+
+type TicketDraft = {
+    ticketBooked: boolean;
+    ticketType: string;
+    ticketFrom: string;
+    ticketTo: string;
+    ticketDateTimeValue: string;
+};
+
+function defaultTicketDraft(query: PackageQueryType): TicketDraft {
+    return {
+        ticketBooked: query.ticketBooked,
+        ticketType: query.ticketType ?? "TRAIN",
+        ticketFrom: query.ticketFrom ?? "",
+        ticketTo: query.ticketTo ?? "",
+        ticketDateTimeValue: query.ticketDateTime ? toDatetimeLocalValue(new Date(query.ticketDateTime)) : "",
+    };
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 type Props = {
@@ -472,6 +529,17 @@ export function PackageDetailsDialog({
     const [reqs, setReqs] = useState<PackageRequirements>(() =>
         normalizeRequirements(initialRequirements ?? defaultRequirements(query), defaultRequirements(query)),
     );
+    // Ticket booking lives on the query itself (package_queries.ticketBooked
+    // etc — same columns the sales sheet's TicketDetailsCard and the list's
+    // train/flight icon read), not inside the `requirements` JSON blob like
+    // every other tab here. Kept as its own draft so this dialog can still
+    // fill it in as part of the same wizard and commit it alongside
+    // savePackageRequirements on one Save, without a second source of truth.
+    const [ticketDraft, setTicketDraft] = useState<TicketDraft>(() => defaultTicketDraft(query));
+    // Shows the inline error under Trip Type once the exec has actually
+    // tried to move past it without picking one — not on first render, so
+    // an untouched form doesn't open already flagged as invalid.
+    const [tripTypeError, setTripTypeError] = useState(false);
 
     // Vehicle catalog for the Transport tab — fetched from `/dashboard/vehicles`
     // so the sales exec picks from what the fleet actually has, not a hardcoded list.
@@ -571,8 +639,23 @@ export function PackageDetailsDialog({
         setActiveTab(id);
     }
 
+    /** Trip Type is the one required field in this form — checked here
+     * rather than blocking every tab, since Save can be triggered from any
+     * of them (the "Save" button next to Next) and Next only guards the one
+     * tab it actually gates. */
+    function validateRequired(): boolean {
+        if (!reqs.travellers.tripType) {
+            setTripTypeError(true);
+            setActiveTab("travellers");
+            toast.error("Trip type is required before saving");
+            return false;
+        }
+        return true;
+    }
+
     function nextTab() {
         const idx = TABS.findIndex(t => t.id === activeTab);
+        if (activeTab === "travellers" && !validateRequired()) return;
         if (idx < TABS.length - 1) setActiveTab(TABS[idx + 1].id);
     }
 
@@ -582,14 +665,26 @@ export function PackageDetailsDialog({
     }
 
     function handleSave() {
+        if (!validateRequired()) return;
         startTransition(async () => {
-            const result = await savePackageRequirements(query.id, reqs);
-            if (result.success) {
-                toast.success(result.message);
+            const [reqResult, ticketResult] = await Promise.all([
+                savePackageRequirements(query.id, reqs),
+                updateTicketDetails(query.id, {
+                    ticketBooked: ticketDraft.ticketBooked,
+                    ticketType: ticketDraft.ticketBooked ? (ticketDraft.ticketType as "TRAIN" | "FLIGHT") : null,
+                    ticketFrom: ticketDraft.ticketBooked ? (ticketDraft.ticketFrom || null) : null,
+                    ticketTo: ticketDraft.ticketBooked ? (ticketDraft.ticketTo || null) : null,
+                    ticketDateTime: ticketDraft.ticketBooked && ticketDraft.ticketDateTimeValue
+                        ? new Date(ticketDraft.ticketDateTimeValue).toISOString()
+                        : null,
+                }),
+            ]);
+            if (reqResult.success && ticketResult.success) {
+                toast.success(reqResult.message);
                 setOpen(false);
                 onDone?.();
             } else {
-                toast.error(result.message);
+                toast.error(!reqResult.success ? reqResult.message : "Failed to save ticket details");
             }
         });
     }
@@ -598,6 +693,19 @@ export function PackageDetailsDialog({
     const isLastTab = activeTabIdx === TABS.length - 1;
     const totalPax = reqs.travellers.adults + reqs.travellers.children + reqs.travellers.infants;
 
+    // Whether each step already has something filled in — drives the check
+    // mark in the left-hand step list so an exec can see what's left at a
+    // glance instead of clicking through every tab.
+    const sectionFilled: Record<TabId, boolean> = {
+        travellers: Boolean(reqs.travellers.tripType) || (reqs.travellers.members ?? []).some(m => m.name.trim().length > 0),
+        journey: reqs.journey.departurePoints.length > 0 || reqs.journey.destinations.length > 0 || Boolean(reqs.journey.travelDate),
+        booking: ticketDraft.ticketBooked,
+        stay: reqs.stay.types.length > 0 || reqs.stay.mealTypes.length > 0 || Boolean(reqs.stay.customMeal),
+        transport: reqs.transport.required === false || reqs.transport.cabTypes.length > 0 || reqs.transport.includeFlights || reqs.transport.includeTrain,
+        activities: reqs.activities.selected.length > 0 || reqs.activities.custom.length > 0,
+        budget: Boolean(reqs.budget.min) || Boolean(reqs.budget.max),
+    };
+
     return (
         <Dialog
             open={open}
@@ -605,15 +713,16 @@ export function PackageDetailsDialog({
                 setOpen(v);
                 if (v) {
                     setReqs(normalizeRequirements(initialRequirements ?? defaultRequirements(query), defaultRequirements(query)));
+                    setTicketDraft(defaultTicketDraft(query));
                     setActiveTab("travellers");
                 }
             }}
         >
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-8xl h-[88vh] p-0 flex flex-col gap-0 overflow-y-auto scrollbar-none">
+            <DialogContent className="max-w-310! w-[95vw] h-[88vh] p-0 flex flex-col gap-0 overflow-hidden">
 
                 {/* Header */}
-                <DialogHeader className="px-6 py-4 border-b shrink-0">
+                <DialogHeader className="px-6 py-4 border-b border-dashboard-base-300 bg-dashboard-base-100 shrink-0">
                     <div className="flex items-start justify-between gap-4">
                         <div>
                             <DialogTitle className="text-base">Package Requirements</DialogTitle>
@@ -623,7 +732,7 @@ export function PackageDetailsDialog({
                             </DialogDescription>
                         </div>
                         {totalPax > 0 && (
-                            <Badge variant="secondary" className="shrink-0 text-xs bg-violet-200 text-violet-600 font-medium">
+                            <Badge variant="secondary" className="shrink-0 text-xs bg-dashboard-primary/15 text-dashboard-primary font-medium">
                                 <Users className="h-3 w-3 mr-1" />
                                 {totalPax} Pax
                             </Badge>
@@ -631,35 +740,63 @@ export function PackageDetailsDialog({
                     </div>
                 </DialogHeader>
 
-                {/* Tab bar */}
-                <div className="flex border-b bg-muted/20 overflow-x-auto shrink-0 scrollbar-none">
-                    {TABS.map((tab, i) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => goToTab(tab.id)}
-                                className={[
-                                    "flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium whitespace-nowrap",
-                                    "border-b-2 transition-colors shrink-0 cursor-pointer ",
-                                    isActive
-                                        ? `border-violet-500 text-violet-500 bg-violet-50`
-                                        : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40",
-                                ].join(" ")}
-                            >
-                                <Icon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{tab.label}</span>
-                                <span className="sm:hidden">{i + 1}</span>
-                            </button>
-                        );
-                    })}
-                </div>
+                {/* Body: step list on the left, active step's form on the right */}
+                <div className="flex flex-1 min-h-0">
+
+                    {/* Left: step navigation — each row carries its own accent
+                        color (matching the icon in its content header), and
+                        fills solid green with a check once that section has
+                        something in it, so an exec can see what's left
+                        without clicking through every tab. */}
+                    <div className="w-64 shrink-0 border-r border-dashboard-base-300 bg-dashboard-base-200/40 overflow-y-auto scrollbar-none py-3 px-2.5 space-y-1">
+                        {TABS.map((tab) => {
+                            const Icon = tab.icon;
+                            const isActive = activeTab === tab.id;
+                            const isFilled = sectionFilled[tab.id];
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => goToTab(tab.id)}
+                                    className={[
+                                        "w-full flex items-center gap-3 px-2.5 py-2.5 rounded-xl text-left transition-all cursor-pointer",
+                                        isActive
+                                            ? `${tab.bgLight} ring-1 ${tab.ring}`
+                                            : "hover:bg-dashboard-base-200/60",
+                                    ].join(" ")}
+                                >
+                                    <span className={[
+                                        "flex items-center justify-center h-8 w-8 rounded-full shrink-0 transition-colors",
+                                        isFilled
+                                            ? "bg-dashboard-success text-dashboard-success-content"
+                                            : isActive
+                                                ? `${tab.bg} ${tab.content}`
+                                                : `${tab.bgLight} ${tab.color}`,
+                                    ].join(" ")}>
+                                        {isFilled ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <p className={[
+                                            "text-sm font-medium leading-tight truncate",
+                                            isActive ? tab.color : "text-dashboard-base-content",
+                                        ].join(" ")}>
+                                            {tab.label}
+                                        </p>
+                                        <p className="text-[11px] text-dashboard-base-content/60 leading-tight truncate mt-0.5">
+                                            {tab.desc}
+                                        </p>
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Right: header meta + the active step's form */}
+                    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
 
                 {/* Scrollable content */}
-                <ScrollArea className="flex-1">
-                    <div className="px-6 py-5">
+                <ScrollArea className="flex-1 min-h-0">
+                    <div className="px-8 py-6 max-w-2xl">
 
                         {/* ── 1. TRAVELLERS ──────────────────────────────────── */}
                         {activeTab === "travellers" && (
@@ -667,7 +804,8 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={Users}
                                     title="Traveller Details"
-                                    color="text-violet-600"
+                                    color="text-dashboard-primary"
+                                    bg="bg-dashboard-primary/12"
                                     subtitle="Who's coming on this trip?"
                                 />
 
@@ -676,7 +814,7 @@ export function PackageDetailsDialog({
                                     <Input
                                         id="leadName"
                                         value={reqs.travellers.leadName}
-                                        onChange={e => update("travellers", { leadName: e.target.value })}
+                                        onChange={e => update("travellers", { leadName: capitalizeWords(e.target.value) })}
                                         placeholder="Full name of primary traveller"
                                     />
                                 </div>
@@ -684,15 +822,24 @@ export function PackageDetailsDialog({
                                 <div className="space-y-1.5">
                                     <Label htmlFor="tripType" className="flex items-center gap-1.5">
                                         <Heart className="h-3 w-3" /> Trip Type / Purpose of Travel
+                                        <span className="text-dashboard-error">*</span>
                                     </Label>
                                     <Select
                                         value={reqs.travellers.tripType || undefined}
-                                        onValueChange={v => update("travellers", {
-                                            tripType: v,
-                                            ...(v !== "OTHER" ? { tripTypeCustom: "" } : {}),
-                                        })}
+                                        onValueChange={v => {
+                                            setTripTypeError(false);
+                                            update("travellers", {
+                                                tripType: v,
+                                                ...(v !== "OTHER" ? { tripTypeCustom: "" } : {}),
+                                            });
+                                        }}
                                     >
-                                        <SelectTrigger id="tripType" className="w-full">
+                                        <SelectTrigger
+                                            id="tripType"
+                                            className={tripTypeError && !reqs.travellers.tripType
+                                                ? "w-full border-dashboard-error ring-1 ring-dashboard-error/30"
+                                                : "w-full"}
+                                        >
                                             <SelectValue placeholder="Select the purpose of this trip" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -701,6 +848,11 @@ export function PackageDetailsDialog({
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    {tripTypeError && !reqs.travellers.tripType && (
+                                        <p className="text-xs text-dashboard-error flex items-center gap-1">
+                                            <AlertCircle className="h-3 w-3" /> Trip type is required
+                                        </p>
+                                    )}
                                     {reqs.travellers.tripType === "OTHER" && (
                                         <Input
                                             value={reqs.travellers.tripTypeCustom ?? ""}
@@ -716,7 +868,7 @@ export function PackageDetailsDialog({
                                     <div className="space-y-1.5">
                                         <Label htmlFor="adults">
                                             Adults
-                                            <span className="text-muted-foreground text-[10px] ml-1">12+ yrs</span>
+                                            <span className="text-dashboard-base-content/60 text-[10px] ml-1">12+ yrs</span>
                                         </Label>
                                         <NumberField
                                             id="adults"
@@ -728,7 +880,7 @@ export function PackageDetailsDialog({
                                     <div className="space-y-1.5">
                                         <Label htmlFor="children">
                                             Children
-                                            <span className="text-muted-foreground text-[10px] ml-1">2–12 yrs</span>
+                                            <span className="text-dashboard-base-content/60 text-[10px] ml-1">2–12 yrs</span>
                                         </Label>
                                         <NumberField
                                             id="children"
@@ -740,7 +892,7 @@ export function PackageDetailsDialog({
                                     <div className="space-y-1.5">
                                         <Label htmlFor="infants">
                                             Infants
-                                            <span className="text-muted-foreground text-[10px] ml-1">&lt;2 yrs</span>
+                                            <span className="text-dashboard-base-content/60 text-[10px] ml-1">&lt;2 yrs</span>
                                         </Label>
                                         <NumberField
                                             id="infants"
@@ -751,13 +903,13 @@ export function PackageDetailsDialog({
                                     </div>
                                 </div>
 
-                                <div className="rounded-lg bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900/40 px-3 py-2.5">
-                                    <p className="text-xs text-violet-700 dark:text-violet-400">
+                                <div className="rounded-lg bg-dashboard-primary/8 border border-dashboard-primary/20 px-3 py-2.5">
+                                    <p className="text-xs text-dashboard-primary">
                                         Total Pax:{" "}
                                         <span className="font-semibold text-sm">
                                             {totalPax}
                                         </span>
-                                        <span className="text-violet-600/70 ml-1.5">
+                                        <span className="text-dashboard-primary/70 ml-1.5">
                                             ({reqs.travellers.adults}A
                                             {reqs.travellers.children > 0 && ` + ${reqs.travellers.children}C`}
                                             {reqs.travellers.infants > 0 && ` + ${reqs.travellers.infants}I`})
@@ -781,7 +933,7 @@ export function PackageDetailsDialog({
                                                         value={m.name}
                                                         onChange={e => {
                                                             const members = [...(reqs.travellers.members ?? [])];
-                                                            members[i] = { ...members[i], name: e.target.value };
+                                                            members[i] = { ...members[i], name: capitalizeWords(e.target.value) };
                                                             update("travellers", { members });
                                                         }}
                                                         placeholder={`Traveller ${i + 1} name`}
@@ -818,14 +970,15 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={MapPin}
                                     title="Journey Details"
-                                    color="text-green-600"
+                                    color="text-dashboard-success"
+                                    bg="bg-dashboard-success/12"
                                     subtitle="Where are they going and when?"
                                 />
 
                                 <div className="space-y-1.5">
                                     <Label>
                                         Departure Point(s)
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">the city/cities they're travelling from — add one or more</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">the city/cities they're travelling from — add one or more</span>
                                     </Label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
@@ -865,12 +1018,12 @@ export function PackageDetailsDialog({
                                         <div className="flex flex-wrap gap-2 pt-1">
                                             {reqs.journey.departurePoints.map((p, i) => (
                                                 <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
-                                                    <MapPin className="h-2.5 w-2.5 text-green-600" />
+                                                    <MapPin className="h-2.5 w-2.5 text-dashboard-success" />
                                                     {p}
                                                     <button
                                                         type="button"
                                                         onClick={() => removeDeparturePoint(i)}
-                                                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                                                        className="ml-0.5 rounded-full hover:text-dashboard-error transition-colors"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -883,7 +1036,7 @@ export function PackageDetailsDialog({
                                 <div className="space-y-1.5">
                                     <Label>
                                         Pickup Point(s)
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">specific pickup spot — airport, hotel, landmark</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">specific pickup spot — airport, hotel, landmark</span>
                                     </Label>
                                     <div className="flex gap-2">
                                         <div className="flex-1">
@@ -923,12 +1076,12 @@ export function PackageDetailsDialog({
                                         <div className="flex flex-wrap gap-2 pt-1">
                                             {reqs.journey.pickupPoints.map((p, i) => (
                                                 <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
-                                                    <MapPin className="h-2.5 w-2.5 text-green-600" />
+                                                    <MapPin className="h-2.5 w-2.5 text-dashboard-success" />
                                                     {p}
                                                     <button
                                                         type="button"
                                                         onClick={() => removePickupPoint(i)}
-                                                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                                                        className="ml-0.5 rounded-full hover:text-dashboard-error transition-colors"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -1036,12 +1189,12 @@ export function PackageDetailsDialog({
                                         <div className="flex flex-wrap gap-2 pt-1">
                                             {reqs.journey.destinations.map((d, i) => (
                                                 <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
-                                                    <MapPin className="h-2.5 w-2.5 text-green-600" />
+                                                    <MapPin className="h-2.5 w-2.5 text-dashboard-success" />
                                                     {d}
                                                     <button
                                                         type="button"
                                                         onClick={() => removeDestination(i)}
-                                                        className="ml-0.5 rounded-full hover:text-destructive transition-colors"
+                                                        className="ml-0.5 rounded-full hover:text-dashboard-error transition-colors"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -1058,20 +1211,122 @@ export function PackageDetailsDialog({
                             </div>
                         )}
 
+                        {/* ── 2b. TICKET BOOKING ──────────────────────────────── */}
+                        {activeTab === "booking" && (
+                            <div className="space-y-4">
+                                <SectionHeader
+                                    icon={Ticket}
+                                    title="Ticket Booking"
+                                    color="text-dashboard-info"
+                                    bg="bg-dashboard-info/12"
+                                    subtitle="Has the client already booked their own travel ticket?"
+                                />
+
+                                <div className="flex items-center justify-between rounded-xl border border-dashboard-base-300 bg-dashboard-base-200/20 px-4 py-3">
+                                    <div>
+                                        <p className="text-sm font-medium">Ticket confirmed</p>
+                                        <p className="text-xs text-dashboard-base-content/60 mt-0.5">
+                                            Toggle on once the client shares their booking
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={ticketDraft.ticketBooked}
+                                        onCheckedChange={v => setTicketDraft(d => ({ ...d, ticketBooked: v }))}
+                                    />
+                                </div>
+
+                                {ticketDraft.ticketBooked ? (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label>Ticket Type</Label>
+                                            <div className="flex gap-2">
+                                                {TICKET_TYPES.map(t => (
+                                                    <button
+                                                        key={t.value}
+                                                        type="button"
+                                                        onClick={() => setTicketDraft(d => ({ ...d, ticketType: t.value }))}
+                                                        className={[
+                                                            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg border text-sm font-medium transition-all",
+                                                            ticketDraft.ticketType === t.value
+                                                                ? "bg-dashboard-info text-dashboard-info-content border-dashboard-info shadow-sm"
+                                                                : "bg-dashboard-base-100 text-dashboard-base-content/60 border-dashboard-base-300 hover:border-dashboard-info/60 hover:text-dashboard-base-content",
+                                                        ].join(" ")}
+                                                    >
+                                                        <t.icon className="h-4 w-4" /> {t.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="ticketFrom">From</Label>
+                                                <Input
+                                                    id="ticketFrom"
+                                                    value={ticketDraft.ticketFrom}
+                                                    onChange={e => setTicketDraft(d => ({ ...d, ticketFrom: e.target.value }))}
+                                                    placeholder="e.g. Delhi"
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <Label htmlFor="ticketTo">To</Label>
+                                                <Input
+                                                    id="ticketTo"
+                                                    value={ticketDraft.ticketTo}
+                                                    onChange={e => setTicketDraft(d => ({ ...d, ticketTo: e.target.value }))}
+                                                    placeholder="e.g. Srinagar"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label htmlFor="ticketDateTime" className="flex items-center gap-1.5">
+                                                <CalendarDays className="h-3 w-3" /> Departure Date &amp; Time
+                                            </Label>
+                                            <Input
+                                                id="ticketDateTime"
+                                                type="datetime-local"
+                                                value={ticketDraft.ticketDateTimeValue}
+                                                onChange={e => setTicketDraft(d => ({ ...d, ticketDateTimeValue: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        {(ticketDraft.ticketFrom || ticketDraft.ticketTo) && (
+                                            <div className="rounded-lg bg-dashboard-info/8 border border-dashboard-info/20 px-3 py-2.5">
+                                                <p className="text-xs text-dashboard-info flex items-center gap-1.5">
+                                                    {ticketDraft.ticketType === "FLIGHT"
+                                                        ? <Plane className="h-3.5 w-3.5" />
+                                                        : <TrainFront className="h-3.5 w-3.5" />}
+                                                    <span className="font-medium">{ticketDraft.ticketFrom || "—"} → {ticketDraft.ticketTo || "—"}</span>
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="rounded-lg bg-dashboard-base-200/50 border border-dashboard-base-300 px-3 py-2.5">
+                                        <p className="text-xs text-dashboard-base-content/60">
+                                            No ticket booked yet — the assigned exec can fill this in once the client shares it.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* ── 3. STAY ─────────────────────────────────────────── */}
                         {activeTab === "stay" && (
                             <div className="space-y-4">
                                 <SectionHeader
                                     icon={Hotel}
                                     title="Stay & Accommodation"
-                                    color="text-purple-600"
+                                    color="text-dashboard-secondary"
+                                    bg="bg-dashboard-secondary/12"
                                     subtitle="What kind of accommodation do they prefer?"
                                 />
 
                                 <div className="space-y-2">
                                     <Label>
                                         Stay Type
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">select all that apply</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">select all that apply</span>
                                     </Label>
                                     <MultiToggle
                                         options={STAY_TYPES}
@@ -1083,7 +1338,7 @@ export function PackageDetailsDialog({
                                 <div className="space-y-2">
                                     <Label>
                                         Meal Preference
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">select all that apply</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">select all that apply</span>
                                     </Label>
                                     <MultiToggle
                                         options={MEAL_TYPES}
@@ -1128,7 +1383,7 @@ export function PackageDetailsDialog({
                                             <button
                                                 type="button"
                                                 onClick={() => update("stay", { customMeal: "" })}
-                                                className="hover:text-destructive"
+                                                className="hover:text-dashboard-error"
                                             >
                                                 <X className="h-3 w-3" />
                                             </button>
@@ -1149,7 +1404,8 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={Car}
                                     title="Transport"
-                                    color="text-orange-600"
+                                    color="text-dashboard-warning"
+                                    bg="bg-dashboard-warning/12"
                                     subtitle="How are they getting around?"
                                 />
 
@@ -1176,10 +1432,10 @@ export function PackageDetailsDialog({
                                         <div className="space-y-2">
                                             <Label>
                                                 Vehicle Type
-                                                <span className="text-muted-foreground text-xs font-normal ml-1.5">from the fleet — select all that apply</span>
+                                                <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">from the fleet — select all that apply</span>
                                             </Label>
                                             {loadingVehicles ? (
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                                                <div className="flex items-center gap-2 text-xs text-dashboard-base-content/60 py-2">
                                                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading vehicle types…
                                                 </div>
                                             ) : (
@@ -1251,8 +1507,8 @@ export function PackageDetailsDialog({
                                 )}
 
                                 {!reqs.transport.required && (
-                                    <div className="rounded-lg bg-muted/50 border border-border px-3 py-2.5">
-                                        <p className="text-xs text-muted-foreground">
+                                    <div className="rounded-lg bg-dashboard-base-200/50 border border-dashboard-base-300 px-3 py-2.5">
+                                        <p className="text-xs text-dashboard-base-content/60">
                                             No transport will be included in the package. Customer arranges their own travel.
                                         </p>
                                     </div>
@@ -1271,14 +1527,15 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={Zap}
                                     title="Activities & Experiences"
-                                    color="text-yellow-600"
+                                    color="text-dashboard-accent"
+                                    bg="bg-dashboard-accent/12"
                                     subtitle="What experiences does the customer want?"
                                 />
 
                                 <div className="space-y-2">
                                     <Label>
                                         Select Activities
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">tap to select</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">tap to select</span>
                                     </Label>
                                     <MultiToggle
                                         options={PRESET_ACTIVITIES}
@@ -1290,7 +1547,7 @@ export function PackageDetailsDialog({
                                 <div className="space-y-2">
                                     <Label>
                                         Custom Activities
-                                        <span className="text-muted-foreground text-xs font-normal ml-1.5">not in the list above</span>
+                                        <span className="text-dashboard-base-content/60 text-xs font-normal ml-1.5">not in the list above</span>
                                     </Label>
                                     <div className="flex gap-2">
                                         <Input
@@ -1310,12 +1567,12 @@ export function PackageDetailsDialog({
                                         <div className="flex flex-wrap gap-2 pt-1">
                                             {reqs.activities.custom.map((a, i) => (
                                                 <Badge key={i} variant="secondary" className="gap-1.5 pr-1">
-                                                    <Zap className="h-2.5 w-2.5 text-yellow-600" />
+                                                    <Zap className="h-2.5 w-2.5 text-dashboard-accent" />
                                                     {a}
                                                     <button
                                                         type="button"
                                                         onClick={() => removeCustomActivity(i)}
-                                                        className="hover:text-destructive transition-colors"
+                                                        className="hover:text-dashboard-error transition-colors"
                                                     >
                                                         <X className="h-3 w-3" />
                                                     </button>
@@ -1326,8 +1583,8 @@ export function PackageDetailsDialog({
                                 </div>
 
                                 {(reqs.activities.selected.length > 0 || reqs.activities.custom.length > 0) && (
-                                    <div className="rounded-lg bg-yellow-50/60 dark:bg-yellow-950/20 border border-yellow-200/60 dark:border-yellow-900/40 px-3 py-2">
-                                        <p className="text-xs text-yellow-700 dark:text-yellow-400 font-medium">
+                                    <div className="rounded-lg bg-dashboard-accent/8 border border-dashboard-accent/30 px-3 py-2">
+                                        <p className="text-xs text-dashboard-accent font-medium">
                                             {reqs.activities.selected.length + reqs.activities.custom.length} activities selected
                                         </p>
                                     </div>
@@ -1346,7 +1603,8 @@ export function PackageDetailsDialog({
                                 <SectionHeader
                                     icon={Wallet}
                                     title="Budget"
-                                    color="text-red-600"
+                                    color="text-dashboard-error"
+                                    bg="bg-dashboard-error/12"
                                     subtitle="What is the customer's budget range?"
                                 />
 
@@ -1408,14 +1666,14 @@ export function PackageDetailsDialog({
                                 </div>
 
                                 {(reqs.budget.min || reqs.budget.max) && (
-                                    <div className="rounded-lg bg-violet-200/60 border border-primary/20 px-4 py-3">
-                                        <p className="text-xs text-violet-700 mb-0.5">Budget Range</p>
-                                        <p className="text-lg font-semibold text-primary">
+                                    <div className="rounded-lg bg-dashboard-primary/15 border border-dashboard-primary/20 px-4 py-3">
+                                        <p className="text-xs text-dashboard-primary mb-0.5">Budget Range</p>
+                                        <p className="text-lg font-semibold text-dashboard-primary">
                                             {reqs.budget.min ? `₹${reqs.budget.min.toLocaleString("en-IN")}` : null}
                                             {reqs.budget.min && reqs.budget.max ? " — " : null}
                                             {reqs.budget.max ? `₹${reqs.budget.max.toLocaleString("en-IN")}` : null}
                                         </p>
-                                        <p className="text-xs text-violet-700 mt-0.5">
+                                        <p className="text-xs text-dashboard-primary mt-0.5">
                                             {reqs.budget.type === "PER_PERSON" ? "per person" : "total for the group"}
                                             {reqs.budget.type === "PER_PERSON" && totalPax > 0 && (
                                                 <span className="ml-1">
@@ -1438,35 +1696,32 @@ export function PackageDetailsDialog({
                     </div>
                 </ScrollArea>
 
-                {/* Footer — nav dots + prev/next + save */}
-                <div className="px-6 py-4 border-t bg-muted/20 shrink-0 flex items-center justify-between gap-3">
-                    {/* Progress dots */}
-                    <div className="flex items-center gap-1">
-                        {TABS.map((tab, i) => (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => goToTab(tab.id)}
-                                className={[
-                                    "h-1.5 rounded-full transition-all duration-200",
-                                    activeTab === tab.id
-                                        ? "w-6 bg-violet-600"
-                                        : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60",
-                                ].join(" ")}
-                                title={tab.label}
-                            />
-                        ))}
-                    </div>
+                {/* Footer — step position + prev/next + save. The step list on
+                    the left already shows overall progress, so this only needs
+                    to say where we are, not repeat it as dots. */}
+                <div className="px-8 py-4 border-t border-dashboard-base-300 bg-dashboard-base-200/60 shrink-0 flex items-center justify-between gap-3">
+                    <p className="text-xs text-dashboard-base-content/60">
+                        Step {activeTabIdx + 1} of {TABS.length} · <span className="font-medium text-dashboard-base-content">{TABS[activeTabIdx].label}</span>
+                    </p>
 
                     {/* Navigation */}
                     <div className="flex items-center gap-2">
                         <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setOpen(false)}
+                            className="border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200 hover:text-dashboard-base-content"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
                             size="sm"
                             onClick={prevTab}
                             disabled={activeTabIdx === 0}
-                            className="gap-1"
+                            className="gap-1 border-dashboard-base-300 text-dashboard-base-content/70 hover:bg-dashboard-base-200 hover:text-dashboard-base-content disabled:opacity-40"
                         >
                             <ChevronLeft className="h-3.5 w-3.5" />
                             Back
@@ -1476,7 +1731,7 @@ export function PackageDetailsDialog({
                                 type="button"
                                 size="sm"
                                 onClick={nextTab}
-                                className="gap-1"
+                                className="gap-1 bg-dashboard-primary hover:bg-dashboard-primary/90 text-dashboard-primary-content cursor-pointer"
                             >
                                 Next
                                 <ChevronRight className="h-3.5 w-3.5" />
@@ -1487,7 +1742,7 @@ export function PackageDetailsDialog({
                                 size="sm"
                                 onClick={handleSave}
                                 disabled={isPending}
-                                className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white p-2 rounded-md cursor-pointer"
+                                className="gap-1.5 bg-dashboard-primary hover:bg-dashboard-primary/90 text-dashboard-primary-content rounded-md cursor-pointer"
                             >
                                 <CheckCircle2 className="h-3.5 w-3.5" />
                                 {isPending ? "Saving..." : "Save Requirements"}
@@ -1497,14 +1752,18 @@ export function PackageDetailsDialog({
                         {!isLastTab && (
                             <Button
                                 type="button"
-                                variant="outline"
                                 size="sm"
                                 onClick={handleSave}
                                 disabled={isPending}
+                                className="gap-1.5 bg-dashboard-success hover:bg-dashboard-success/90 text-dashboard-success-content cursor-pointer"
                             >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
                                 {isPending ? "Saving..." : "Save"}
                             </Button>
                         )}
+                    </div>
+                </div>
+
                     </div>
                 </div>
             </DialogContent>

@@ -168,14 +168,16 @@ const AvatarName = ({
               </a>
             ))}
 
-            {/* View As — only for FSD when NOT already impersonating */}
-            {canViewAs && !viewingAs && (
+            {/* View As — also available while already impersonating, so
+                switching to someone else doesn't require Stop Viewing As
+                first and re-opening the menu. */}
+            {canViewAs && (
               <button
                 onClick={handleViewAs}
                 className="flex items-center gap-2.5 w-full px-2.5 py-2 rounded-lg text-sm text-foreground hover:bg-accent transition-colors duration-100"
               >
                 <Users className="w-4 h-4 opacity-60" />
-                View as…
+                {viewingAs ? "Switch view as…" : "View as…"}
               </button>
             )}
           </div>
@@ -211,6 +213,7 @@ const AvatarName = ({
         <ViewAsMemberPicker
           open={pickerOpen}
           onClose={() => setPickerOpen(false)}
+          excludeId={viewingAs?.id ?? null}
         />
       )}
     </>

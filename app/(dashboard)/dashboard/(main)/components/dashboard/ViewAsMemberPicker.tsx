@@ -19,9 +19,13 @@ import {
 interface ViewAsMemberPickerProps {
   open: boolean;
   onClose: () => void;
+  /** The member currently being viewed as, if any — left out of the list
+   * since re-selecting them would be a no-op (this dialog doubles as the
+   * "switch to someone else" picker while already impersonating). */
+  excludeId?: string | null;
 }
 
-export function ViewAsMemberPicker({ open, onClose }: ViewAsMemberPickerProps) {
+export function ViewAsMemberPicker({ open, onClose, excludeId = null }: ViewAsMemberPickerProps) {
   const [members, setMembers] = useState<ViewableMember[]>([]);
   const [search, setSearch]   = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,6 +48,7 @@ export function ViewAsMemberPicker({ open, onClose }: ViewAsMemberPickerProps) {
   }
 
   const filtered = members.filter((m) => {
+    if (m.id === excludeId) return false;
     const q = search.toLowerCase();
     return (
       m.name.toLowerCase().includes(q) ||
@@ -59,7 +64,7 @@ export function ViewAsMemberPicker({ open, onClose }: ViewAsMemberPickerProps) {
         <DialogHeader className="px-4 pt-4 pb-3 border-b border-border">
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <Users className="h-4 w-4 text-muted-foreground" />
-            View As — Select Member
+            {excludeId ? "Switch View As — Select Member" : "View As — Select Member"}
           </DialogTitle>
         </DialogHeader>
 
