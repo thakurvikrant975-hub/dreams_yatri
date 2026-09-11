@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createLead } from "@/app/actions/enquiry/intake.service";
+import { pickAdClick } from "@/app/lib/ads/attribution";
 import { externalLeadSchema, type ExternalLeadInput } from "./schema";
 
 /**
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
     utmSource: input.utmSource,
     utmMedium: input.utmMedium,
     utmCampaign: input.utmCampaign,
+    ...pickAdClick(input),
     externalId: input.externalId,
     extra: input.extra,
   });

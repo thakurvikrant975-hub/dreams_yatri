@@ -3,6 +3,7 @@ import { db } from "@/app/lib/db";
 import { autoAssignLead } from "@/app/lib/queries/auto-assign";
 import { phoneKey, normalizePhone, PHONE_KEY_SQL } from "@/app/lib/phone";
 import type { QuerySource } from "@/app/generated/prisma";
+import { attributionFor, leadAdColumns, pickAdClick, type AdClick } from "@/app/lib/ads/attribution";
 
 /**
  * The one path a lead takes into `package_queries`, whoever sent it.
@@ -45,7 +46,7 @@ export type IntakeInput = {
   /** Anything the schema has no column for (a landing page's own extra
    * questions, the visitor's city). Stored on `requirements` as-is. */
   extra?: Record<string, unknown>;
-};
+} & AdClick;
 
 export type IntakeResult =
   /** `duplicate` means the lead was recognised, not that anything failed —
@@ -162,6 +163,15 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
     const meta = { ...(extra ?? {}), ...(externalId ? { externalId } : {}) };
     const requirements = Object.keys(meta).length > 0 ? { leadMeta: meta } : undefined;
 
+    /*
+     * Which ad this lead came from. What the caller sent, or — when that names
+     * no ad — whatever the pageUrl still carries: see attributionFor. The old
+     * `gclid` column rides along in leadAdColumns so the lead report's
+     * gclid-means-Google rule keeps holding for every caller.
+     */
+    const attribution = attributionFor({ ...pickAdClick(input), utmSource, utmMedium, utmCampaign }, pageUrl);
+    const adColumns = leadAdColumns({ ...attribution, gclid }, new Date());
+
     const created = await db.package_queries.create({
       data: {
         name,
@@ -176,10 +186,10 @@ export async function createLead(input: IntakeInput): Promise<IntakeResult> {
         groupSize: travellers ?? null,
         message: message || null,
         source: source ?? "PACKAGE_FORM",
-        gclid: gclid || null,
-        utmSource: utmSource || null,
-        utmMedium: utmMedium || null,
-        utmCampaign: utmCampaign || null,
+        utmSource: attribution.utmSource || null,
+        utmMedium: attribution.utmMedium || null,
+        utmCampaign: attribution.utmCampaign || null,
+        ...adColumns,
         status: "SUBMITTED",
         leadProfileId: profile.id,
         ...(requirements ? { requirements } : {}),

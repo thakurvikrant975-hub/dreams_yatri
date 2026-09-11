@@ -4,6 +4,7 @@ import MobileBottomNav from "@/app/components/navigation/MobileBottomNav";
 import ModalRoot from "@/app/components/modals/ModalRoot";
 import { Toaster } from "sonner";
 import AppToastContainer from "@/app/components/ui/AppToastContainer";
+import { AdAttributionCapture } from "@/app/components/ads/AdAttributionCapture";
 
 
 export const metadata = {
@@ -43,6 +44,8 @@ export default function WebsiteLayout({
       <ModalRoot />
       <Toaster position="top-center" richColors />
       <AppToastContainer />
+      {/* The landing hit is the only moment the ad's click id is in the URL. */}
+      <AdAttributionCapture />
     </Providers>
   );
 }

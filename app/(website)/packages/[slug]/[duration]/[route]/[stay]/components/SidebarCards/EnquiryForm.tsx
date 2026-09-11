@@ -8,6 +8,7 @@ import Card from '@/app/components/ui/Card';
 import { Heading, Text } from '@/app/components/ui/Typography';
 import { useBooking } from '../PackageBookingProvider';
 import { submitPackageEnquiry } from '@/app/actions/enquiry/submit';
+import { captureAdAttribution } from '@/app/lib/ads/first-touch';
 import { enquirySchema, type EnquiryErrors } from '@/app/actions/enquiry/schema';
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/app/lib/assets/country-codes';
 
@@ -71,6 +72,7 @@ const EnquiryForm: React.FC<EnquiryFormProps> = ({ packageName, destination }) =
       destination,
       packageUrl: typeof window !== 'undefined' ? window.location.pathname : undefined,
       pageUrl:    typeof window !== 'undefined' ? window.location.href     : undefined,
+      ...captureAdAttribution(),
     });
 
     if (result.ok) {

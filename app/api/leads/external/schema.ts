@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { adClickFields } from "@/app/lib/ads/attribution-schema";
 
 /**
  * What an external site may POST as a lead.
@@ -72,6 +73,8 @@ export const externalLeadSchema = z.object({
   utmSource: optionalText(120),
   utmMedium: optionalText(120),
   utmCampaign: optionalText(200),
+  /** Which campaign / ad group / ad, read off the landing URL by the sender. */
+  ...adClickFields,
 
   /** A closed set: a public endpoint must never be able to claim an
    * internal-only origin like PHONE_CALL or REFERRAL. */

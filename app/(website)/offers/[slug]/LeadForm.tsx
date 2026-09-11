@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { submitPackageEnquiry } from "@/app/actions/enquiry/submit";
+import { captureAdAttribution } from "@/app/lib/ads/first-touch";
 import { fireConversion } from "./gtag";
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from "@/app/lib/assets/country-codes";
 
@@ -37,6 +38,7 @@ export function LeadForm({
       packageUrl: pageUrl,
       pageUrl,
       source: "LANDING_PAGE",
+      ...captureAdAttribution(),
     });
 
     if (result.ok) {

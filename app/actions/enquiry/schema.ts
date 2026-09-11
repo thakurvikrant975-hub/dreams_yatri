@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { adClickFields, utmFields } from '@/app/lib/ads/attribution-schema'
 
 export const enquirySchema = z.object({
     name:        z.string().min(2, 'Name must be at least 2 characters.').max(100, 'Name is too long.'),
@@ -20,6 +21,10 @@ export const enquirySchema = z.object({
      *  Deliberately a closed enum, not the full QuerySource union, so a public-facing
      *  form can never claim an internal-only source like REFERRAL/PHONE_CALL. */
     source:      z.enum(['PACKAGE_FORM', 'LANDING_PAGE']).optional(),
+    /** Which ad the visitor arrived from, as first-touch capture recorded it.
+     *  Never a reason to reject — see attribution-schema.ts. */
+    ...utmFields,
+    ...adClickFields,
 })
 
 export type EnquiryInput  = z.input<typeof enquirySchema>

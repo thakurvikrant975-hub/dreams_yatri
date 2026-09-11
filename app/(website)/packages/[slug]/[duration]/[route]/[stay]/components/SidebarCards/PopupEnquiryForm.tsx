@@ -4,6 +4,7 @@ import Input from '@/app/components/forms/Input';
 import Label from '@/app/components/forms/Label';
 import Button from '@/app/components/ui/Button';
 import { submitPackageEnquiry } from '@/app/actions/enquiry/submit';
+import { captureAdAttribution } from '@/app/lib/ads/first-touch';
 import { COUNTRY_CODES, DEFAULT_COUNTRY } from '@/app/lib/assets/country-codes';
 
 type Props = {
@@ -52,6 +53,7 @@ export default function PopupEnquiryForm({ packageName, destination, onSuccess }
             destination,
             packageUrl: typeof window !== 'undefined' ? window.location.pathname : undefined,
             pageUrl:    typeof window !== 'undefined' ? window.location.href     : undefined,
+            ...captureAdAttribution(),
         });
 
         if (result.ok) {
