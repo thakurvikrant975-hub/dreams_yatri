@@ -20,21 +20,25 @@ const BASE = `https://googleads.googleapis.com/${API_VERSION}`;
 export const customerIdDigits = (id: string) => id.replace(/\D/g, "");
 
 function config() {
-  const developerToken = process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim();
   const loginCustomerId = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.trim();
-  if (!developerToken) throw new Error("GOOGLE_ADS_DEVELOPER_TOKEN is not set");
   if (!loginCustomerId) throw new Error("GOOGLE_ADS_LOGIN_CUSTOMER_ID is not set (the MCC's id)");
-  return { developerToken, loginCustomerId: customerIdDigits(loginCustomerId) };
+  return {
+    loginCustomerId: customerIdDigits(loginCustomerId),
+    developerToken: process.env.GOOGLE_ADS_DEVELOPER_TOKEN?.trim() || null,
+  };
 }
 
 async function headers(): Promise<Record<string, string>> {
-  const { developerToken, loginCustomerId } = config();
+  const { loginCustomerId, developerToken } = config();
   return {
     authorization: `Bearer ${await googleAdsAccessToken()}`,
-    "developer-token": developerToken,
     // Access flows through the MCC, so every call names it — including calls
     // about a child account.
     "login-customer-id": loginCustomerId,
+    // Since 2026-09-09 API access belongs to the Google Cloud project, not the
+    // token, and Google ignores this header. Still sent when set, for anything
+    // that predates the change; never required.
+    ...(developerToken ? { "developer-token": developerToken } : {}),
     "content-type": "application/json",
   };
 }

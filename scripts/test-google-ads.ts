@@ -12,17 +12,18 @@ import { listAccessibleCustomers, gaql, GoogleAdsError, API_VERSION } from "../a
 /** What each failure most likely means here, so a setup slip reads as a
  * next step rather than a stack trace. */
 const HINTS: Record<string, string> = {
+  CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION:
+    "This Google Cloud project has Test access only. Since 2026-09-09 access belongs to the Cloud project, not the " +
+    "developer token — apply for Explorer access on the project's Google Ads API page in the Cloud console.",
   USER_PERMISSION_DENIED:
     "The service account isn't a user on this account, or GOOGLE_ADS_LOGIN_CUSTOMER_ID isn't the MCC it was added to.",
-  DEVELOPER_TOKEN_NOT_APPROVED: "The developer token only has Test access; production accounts need Explorer or above.",
-  DEVELOPER_TOKEN_PROHIBITED:
-    "The developer token can't be used from this Google Cloud project — create the service account in the project the token belongs to.",
   CUSTOMER_NOT_ENABLED: "The account is cancelled or not yet set up.",
   NOT_ADS_USER: "The service account isn't a user on any Google Ads account yet (MCC → Admin → Access and security).",
 };
 
 async function main() {
-  const missing = ["GOOGLE_ADS_DEVELOPER_TOKEN", "GOOGLE_ADS_LOGIN_CUSTOMER_ID", "GOOGLE_ADS_SERVICE_ACCOUNT"]
+  // No developer token: since 2026-09-09 Google ignores it (see client.ts).
+  const missing = ["GOOGLE_ADS_LOGIN_CUSTOMER_ID", "GOOGLE_ADS_SERVICE_ACCOUNT"]
     .filter((k) => !process.env[k]?.trim());
   if (missing.length) {
     console.error(`missing from .env.local: ${missing.join(", ")}`);

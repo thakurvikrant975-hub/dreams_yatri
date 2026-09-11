@@ -124,10 +124,15 @@ store **hourly at campaign level, daily at ad group and ad level** — hourly ad
   type `UPLOAD_CLICKS` with status `ENABLED`, and both value and currency. Custom variables
   do not work with `gbraid` / `wbraid`.
 
-**Access levels.** The developer token lives on the *manager* account (API Center). It starts
-at **Test** — which cannot read production accounts. **Explorer** (2,880 production
-operations/day) is enough for us — a handful of accounts uses perhaps 20–50 a day — and is
-what our token has. Basic (15,000/day) and Standard (unlimited) are for heavier tools.
+**Access levels belong to the Google Cloud project** — since **2026-09-09**. Before that
+they belonged to the developer token (API Center on the manager account); Google carried
+them over only to Cloud projects that had made API calls in the previous 90 days, re-linking
+a token to another project is no longer possible, and the `developer-token` header is now
+*optional and ignored*. A project starts at **Test** — which cannot read production accounts
+(`CLOUD_PROJECT_NOT_APPROVED_FOR_PRODUCTION`) — and applies for more on its **Google Ads API
+page in the Cloud console**, reviewed automatically. **Explorer** (2,880 production
+operations/day) is enough for us — a handful of accounts uses perhaps 20–50 a day. Basic
+(15,000/day) and Standard (unlimited) are for heavier tools.
 
 **Auth is a service account**, added as a read-only user on the MCC (Admin → Access and
 security). Google Ads accepts this directly now, with no Workspace delegation, and it suits an
@@ -164,14 +169,16 @@ reconstructed.
 Nothing from Step 3 onward works without it. Independent of Step 1.
 
 1. ✅ The MCC covers every ad account — one credential.
-2. ✅ The developer token has **Explorer** access (confirmed 2026-09-11) — enough; no
-   application needed.
+2. 🟡 The developer token shows **Explorer**, but that no longer counts: our project
+   `dreams-yatri-ads-api` had never called the API, so it inherited nothing on 2026-09-09
+   and is at Test. **Apply for Explorer on the project's Google Ads API page** (automated
+   review).
 3. In the Google Cloud project the token belongs to (Google Ads API enabled there): **IAM &
    Admin → Service Accounts → create** `dy-ads-sync`, no Cloud roles; **Keys → JSON**.
 4. Google Ads **MCC → Admin → Access and security → Users → +** → the service account's
    email, **Read only**. (Standard access is needed only for Step 9's uploads.)
 5. Secrets, in `.env.local` locally and in Vercel for Step 5:
-   `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (MCC, digits), and
+   `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (MCC, digits) and
    `GOOGLE_ADS_SERVICE_ACCOUNT` — the JSON key **base64-encoded onto one line**, because its
    multi-line private key is exactly what `.env` parsers and dashboards mangle:
    `base64 -i key.json | tr -d '\n'`.
