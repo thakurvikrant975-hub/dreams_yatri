@@ -27,6 +27,67 @@ if (!defined('DY_ATTRIB_COOKIE')) {
 define('DY_ATTRIB_COOKIE', 'dy_attrib');
 define('DY_ATTRIB_TTL', 60 * 60 * 24 * 30); // 30 days
 
+/** Which ad a lead came from — package_queries column names, forwarded as-is. */
+define('DY_AD_FIELDS', [
+    'adsClickId', 'adsClickIdType', 'adsCampaignId', 'adsAdGroupId', 'adsCreativeId',
+    'adsKeyword', 'adsMatchType', 'adsNetwork', 'adsDevice', 'adsTargetId', 'adsClickAt',
+]);
+
+/**
+ * Which ad the visitor came from, keyed by DY_AD_FIELDS.
+ *
+ * Mirrors readAdAttribution() in the Next.js app (app/lib/ads/attribution.ts):
+ * the same click-id precedence, the same ValueTrack names, and an unfilled
+ * placeholder — `{keyword}` on a Performance Max click, or a suffix pasted in by
+ * hand — counts as absent rather than being recorded as if it were a search
+ * term. A lead gets the same columns whichever of the two sites took it.
+ *
+ * The click id is kept apart from its kind, unlike the combined $gclid in
+ * dy_detect_attribution, because the offline conversion upload takes gclid,
+ * gbraid and wbraid in separate fields.
+ *
+ * `$landingHit` says this is the request the visitor arrived on. Only then is
+ * the click time known; read back later off a referrer, it would be submit
+ * time passed off as click time, so it is left out.
+ */
+function dy_detect_ads($get, $landingHit)
+{
+    $val = function ($k) use ($get) {
+        $v = $get($k);
+        return ($v !== null && !preg_match('/^\{.*\}$/', $v)) ? $v : null;
+    };
+
+    $ads = [];
+    foreach (['gclid' => 'GCLID', 'gbraid' => 'GBRAID', 'wbraid' => 'WBRAID'] as $param => $type) {
+        $id = $val($param);
+        if ($id !== null) {
+            $ads['adsClickId']     = $id;
+            $ads['adsClickIdType'] = $type;
+            break;
+        }
+    }
+
+    $params = [
+        'campaignid' => 'adsCampaignId',
+        'adgroupid'  => 'adsAdGroupId',
+        'creative'   => 'adsCreativeId',
+        'keyword'    => 'adsKeyword',
+        'matchtype'  => 'adsMatchType',
+        'network'    => 'adsNetwork',
+        'device'     => 'adsDevice',
+        'targetid'   => 'adsTargetId',
+    ];
+    foreach ($params as $param => $field) {
+        $v = $val($param);
+        if ($v !== null) $ads[$field] = $v;
+    }
+
+    $isAd = isset($ads['adsClickId']) || isset($ads['adsCampaignId']) || isset($ads['adsAdGroupId']);
+    if ($landingHit && $isAd) $ads['adsClickAt'] = gmdate('Y-m-d\TH:i:s\Z');
+
+    return $ads;
+}
+
 /**
  * How the visitor got here, from the URL and the referrer.
  *
@@ -38,7 +99,7 @@ define('DY_ATTRIB_TTL', 60 * 60 * 24 * 30); // 30 days
  * proves the visitor came from Meta, not that an ad was paid for — the two are
  * reported separately rather than pretending otherwise.
  */
-function dy_detect_attribution($query, $referer)
+function dy_detect_attribution($query, $referer, $landingHit = false)
 {
     $q = [];
     if (is_string($query) && $query !== '') parse_str($query, $q);
@@ -48,6 +109,7 @@ function dy_detect_attribution($query, $referer)
     };
 
     $gclid  = $get('gclid') ?: $get('gbraid') ?: $get('wbraid');
+    $ads    = dy_detect_ads($get, $landingHit);
     $fbclid = $get('fbclid');
     $msclkid = $get('msclkid');
     $utmSource   = $get('utm_source');
@@ -102,6 +164,7 @@ function dy_detect_attribution($query, $referer)
         'campaign' => $utmCampaign,
         'referrer' => is_string($referer) ? substr($referer, 0, 400) : null,
         'at'       => time(),
+        'ads'      => $ads,
     ];
 }
 
@@ -126,12 +189,22 @@ function dy_attrib_to_api($a)
     ];
     $ch = isset($a['channel']) ? $a['channel'] : 'DIRECT';
     $pair = isset($map[$ch]) ? $map[$ch] : [null, null];
-    return [
-        'utmSource'   => $a['source']   ?: $pair[0],
-        'utmMedium'   => $a['medium']   ?: $pair[1],
+    $out = [
+        'utmSource'   => ($a['source'] ?? null) ?: $pair[0],
+        'utmMedium'   => ($a['medium'] ?? null) ?: $pair[1],
         'utmCampaign' => isset($a['campaign']) ? $a['campaign'] : null,
         'gclid'       => isset($a['gclid']) ? $a['gclid'] : null,
     ];
+
+    // A cookie set before these fields existed has no 'ads' key at all — up to
+    // DY_ATTRIB_TTL of them are still out there, and they must read as "no ad
+    // recorded", not break. Only the known fields are taken, so a hand-edited
+    // cookie can't reach anything but these.
+    $ads = isset($a['ads']) && is_array($a['ads']) ? $a['ads'] : [];
+    foreach (DY_AD_FIELDS as $f) {
+        $out[$f] = isset($ads[$f]) && is_string($ads[$f]) ? $ads[$f] : null;
+    }
+    return $out;
 }
 
 // ── Job 1: remember the arrival, on every request ───────────────────────────
@@ -140,7 +213,8 @@ function dy_attrib_to_api($a)
 if (!isset($_COOKIE[DY_ATTRIB_COOKIE]) && !headers_sent()) {
     $seen = dy_detect_attribution(
         isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : '',
-        isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : ''
+        isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '',
+        true
     );
     if ($seen !== null) {
         @setcookie(DY_ATTRIB_COOKIE, json_encode($seen), [
@@ -327,7 +401,7 @@ register_shutdown_function(function () {
         // gen 1 calls the package select "destination"; gen 2 calls it "package".
         $picked = trim((string) ($post['package'] ?? $post['destination'] ?? ''));
 
-        $result = dy_sync_lead([
+        $lead = [
             'name'                => $name,
             'phone'               => $phone,
             'email'               => trim((string) ($post['email'] ?? '')),
@@ -353,7 +427,12 @@ register_shutdown_function(function () {
             // Same visitor, same page, same minute is one submission — enough
             // to stop a double-click becoming two leads.
             'externalId'          => 'dycom-' . substr(sha1($phone . '|' . $landing . '|' . date('YmdHi')), 0, 24),
-        ], 8);
+        ];
+        // Which campaign / ad group / ad. dy_sync_lead drops the nulls, so a
+        // lead with no ad behind it sends none of these.
+        foreach (DY_AD_FIELDS as $f) $lead[$f] = $api[$f];
+
+        $result = dy_sync_lead($lead, 8);
 
         if (!$result['ok']) {
             error_log('[dy_capture] sync failed: ' . ($result['error'] ?? 'unknown'));

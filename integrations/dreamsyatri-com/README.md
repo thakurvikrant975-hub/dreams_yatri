@@ -48,6 +48,21 @@ references these files, so that alone fully disables it.
   label, so it is sent as `packageName`.
 - `gclid` / `utm_*` come from the query string, then a cookie, so a visitor
   who browses before submitting is still attributed.
+- The campaign / ad group / creative / keyword ids come the same way, from the
+  ValueTrack parameters the Google Ads final URL suffix appends, and are
+  forwarded as the `ads*` fields (`DY_AD_FIELDS`). The Next.js site parses the
+  same URL with `app/lib/ads/attribution.ts`; `npm run test:ads-parity` runs
+  this file under the local PHP CLI and fails if the two ever disagree.
+
+## Before uploading a change
+
+This file runs ahead of every page on the site, so a syntax error takes the
+whole site down, landing pages included — and no try/catch inside it can help,
+because a parse error stops PHP before any of it runs. Upload as
+`dy_capture.php.new`, run `php -l` on it **on the server** (its PHP, not
+yours), keep the live file as a dated `.bak`, then `mv` the new one into place
+— a rename is atomic, so no request ever sees half a file. Rolling back is the
+same rename the other way.
 
 ## Verifying
 
