@@ -29,6 +29,7 @@ import type {
     PackageOption,
     QueryStatus,
     QuerySource,
+    TicketType,
     CallOutcome,
     ManualQueryFormState,
     RejectionReasonFormState,
@@ -51,6 +52,7 @@ import {
     getPackagesByDestination as _getPackagesByDestination,
     assignQuery        as _assignQuery,
     updateQueryMessage as _updateQueryMessage,
+    updateTicketDetails as _updateTicketDetails,
 } from "../../(marketing)/queries/actions";
 
 // Async wrapper re-exports — satisfies "use server" (only async fns exported)
@@ -90,6 +92,12 @@ export async function assignQuery(
 }
 export async function updateQueryMessage(queryId: string, message: string): Promise<ActionResult> {
     return _updateQueryMessage(queryId, message);
+}
+export async function updateTicketDetails(
+    queryId: string,
+    input: Parameters<typeof _updateTicketDetails>[1],
+): Promise<ActionResult> {
+    return _updateTicketDetails(queryId, input);
 }
 
 /** Whether the logged-in actor should see the "Team Queries" oversight view

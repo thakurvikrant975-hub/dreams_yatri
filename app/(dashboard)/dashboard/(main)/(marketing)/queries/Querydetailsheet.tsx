@@ -7,7 +7,7 @@ import {
     Phone, Mail, MapPin, Users, Calendar,
     CheckCircle2, XCircle, StickyNote,
     ExternalLink, Globe, PhoneCall, UserCheck,
-    MessageSquare, Save,
+    MessageSquare, Save, Plane, TrainFront,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
@@ -18,7 +18,7 @@ import {
     SheetTitle, SheetDescription,
 } from "../../components/ui/sheet";
 import { ScrollArea } from "../../components/ui/scroll-area";
-import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots } from "../../components/dashboard/CustomBadges";
+import { QueryStatusBadge, QuerySourceBadge, CallAttemptsDots, TicketBadge } from "../../components/dashboard/CustomBadges";
 import { verifyQuery, addNote, updateQueryMessage } from "./actions";
 import { RejectQueryDialog } from "./Rejectquerydialog";
 import { CallAttemptDialog } from "./Callattemptdialog";
@@ -383,6 +383,34 @@ export function QueryDetailSheet({ query, reasons, open, onOpenChange, onRefresh
                                 <InfoRow icon={Users}    label="Group Size"  value={query.groupSize ? `${query.groupSize} people` : null} />
                                 <InfoRow icon={Calendar} label="Travel Date" value={query.travelDate ? format(new Date(query.travelDate), "dd MMM yyyy") : null} />
                             </div>
+                        </section>
+
+                        <Separator />
+
+                        {/* Ticket Booking */}
+                        <section>
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">
+                                Ticket Booking
+                            </h3>
+                            {query.ticketBooked ? (
+                                <div className="space-y-2">
+                                    <TicketBadge ticketType={query.ticketType} />
+                                    <div className="divide-y divide-border/50">
+                                        <InfoRow
+                                            icon={query.ticketType === "FLIGHT" ? Plane : TrainFront}
+                                            label="Route"
+                                            value={query.ticketFrom || query.ticketTo ? `${query.ticketFrom ?? "—"} → ${query.ticketTo ?? "—"}` : null}
+                                        />
+                                        <InfoRow
+                                            icon={Calendar}
+                                            label="Departure"
+                                            value={query.ticketDateTime ? istDateTime(query.ticketDateTime) : null}
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground/70">Not booked yet.</p>
+                            )}
                         </section>
 
                         <Separator />

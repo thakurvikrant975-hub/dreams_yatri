@@ -23,6 +23,8 @@ import {
   Megaphone,
   Search,
   Share2,
+  Plane,
+  TrainFront,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -274,6 +276,63 @@ export function QuerySourceBadge({ source }: { source: QuerySource }) {
       <Icon className="h-3 w-3 shrink-0" />
       {cfg.label}
     </Badge>
+  );
+}
+
+// ── Ticket Type Config ──────────────────────────────────────────────────────
+// Only the two types the ticket-booking UI offers (Add/Edit Query, the sales
+// detail sheet) get a visual — the underlying column reuses the broader enum
+// custom_package_tickets already has (HELICOPTER/BUS/OTHER), but nothing here
+// yet lets a query be marked booked as one of those.
+
+const TICKET_TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; className: string }> = {
+  FLIGHT: {
+    label: "Flight",
+    icon: Plane,
+    className:
+      "bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/30 dark:text-sky-400 dark:border-sky-700",
+  },
+  TRAIN: {
+    label: "Train",
+    icon: TrainFront,
+    className:
+      "bg-orange-50 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700",
+  },
+};
+
+// ── TicketBadge ──────────────────────────────────────────────────────────────
+// Full icon + label badge, for a detail sheet's info area.
+
+export function TicketBadge({ ticketType }: { ticketType: string | null }) {
+  const cfg = ticketType ? TICKET_TYPE_CONFIG[ticketType] : undefined;
+  if (!cfg) return null;
+  const Icon = cfg.icon;
+  return (
+    <Badge
+      variant="outline"
+      className={`gap-1.5 text-[11px] font-medium py-0.5 px-2 rounded-md ${cfg.className}`}
+    >
+      <Icon className="h-3 w-3 shrink-0" />
+      {cfg.label} Booked
+    </Badge>
+  );
+}
+
+// ── TicketIconBadge ──────────────────────────────────────────────────────────
+// Icon-only circle for a table row — same visual language as the notes/VOC
+// badges next to a lead's name in Queriestable.tsx / Salesqueriestable.tsx.
+
+export function TicketIconBadge({ ticketType, title }: { ticketType: string | null; title?: string }) {
+  const cfg = ticketType ? TICKET_TYPE_CONFIG[ticketType] : undefined;
+  if (!cfg) return null;
+  const Icon = cfg.icon;
+  return (
+    <span
+      title={title ?? `${cfg.label} ticket booked`}
+      className={`inline-flex shrink-0 items-center rounded-full border p-1 ${cfg.className}`}
+    >
+      <Icon className="h-2.5 w-2.5" />
+    </span>
   );
 }
 

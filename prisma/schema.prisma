@@ -2809,6 +2809,19 @@ model package_queries {
   destination         String?
   travelDate          DateTime?
   groupSize           Int?
+  /**
+   * Whether the client's own travel ticket (train/flight) is already
+   * booked — set by the lead manager at intake, or filled in/refined later
+   * by the assigned sales exec once the specifics are known. Independent of
+   * custom_package_tickets, which prices ticket legs INTO a package quote;
+   * this is just a fact about the client's own travel plans, captured
+   * before any package exists.
+   */
+  ticketBooked        Boolean           @default(false)
+  ticketType          TicketType?
+  ticketFrom          String?
+  ticketTo            String?
+  ticketDateTime      DateTime?
   source              QuerySource       @default(WEBSITE_FORM)
   gclid               String?
   utmSource           String?

@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../../
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
-import { QueryStatusBadge, QuerySourceBadge } from "../../components/dashboard/CustomBadges";
+import { QueryStatusBadge, QuerySourceBadge, TicketIconBadge } from "../../components/dashboard/CustomBadges";
 import { QueryDetailSheet } from "./Querydetailsheet";
 import { QueryTimelineSheet } from "./QueryTimelineSheet";
 import { getQueryById } from "./actions";
@@ -289,6 +289,12 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                             >
                                 {q.totalLeadQueries} queries
                             </Badge>
+                        )}
+                        {q.ticketBooked && (
+                            <TicketIconBadge
+                                ticketType={q.ticketType}
+                                title={`${q.ticketType === "FLIGHT" ? "Flight" : "Train"} ticket booked${q.ticketFrom && q.ticketTo ? ` — ${q.ticketFrom} → ${q.ticketTo}` : ""}`}
+                            />
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-dashboard-base-content/80">

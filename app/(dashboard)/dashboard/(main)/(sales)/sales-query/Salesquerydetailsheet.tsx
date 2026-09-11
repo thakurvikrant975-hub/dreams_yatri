@@ -8,11 +8,14 @@ import {
     CalendarClock, XCircle,
     Globe, RotateCcw, ClipboardList,
     Package, CheckCircle2, FileText, Heart, Plus, Loader2, StickyNote,
-    MessageSquare, Pencil, Save, AlertCircle,
+    MessageSquare, Pencil, Save, AlertCircle, Ticket, Plane, TrainFront,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Textarea } from "../../components/ui/textarea";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import { Switch } from "../../components/ui/switch";
 import { Separator } from "../../components/ui/separator";
 import {
     Sheet, SheetContent, SheetHeader,
@@ -21,7 +24,7 @@ import {
 import { ScrollArea } from "../../components/ui/scroll-area";
 import { Badge } from "../../components/ui/badge";
 import {
-  QueryStatusBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
+  QueryStatusBadge, TicketBadge,  type QueryStatus,} from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CloseQueryDialog } from "./Closequerydialog";
 import { RejectQueryDialog } from "./Rejectquerydialog";
@@ -29,7 +32,7 @@ import { PackageDetailsDialog } from "./Packagedetailsdialog";
 import { CreatePackageDialog } from "./CreatePackageDialog";
 import { PackageVerificationBadge, PackageSentBadge, HotelRequestBadge } from "./Salesquerybadges";
 import { DeletePackageDialog } from "./Deletepackagedialog";
-import { getCallLogsForQuery, updateQueryMessage } from "./actions";
+import { getCallLogsForQuery, updateQueryMessage, updateTicketDetails } from "./actions";
 import { RequestReopenDialog } from "./RequestReopenDialog";
 import { readRequirements } from "./requirements";
 import type { SentPackageInfo, CallLogEntry, CallLogStatus } from "./actions";
@@ -73,6 +76,175 @@ function SalesFacingSourceBadge({ source }: { source: string }) {
             {isOther ? <AlertCircle className="h-3 w-3 shrink-0" /> : <Globe className="h-3 w-3 shrink-0" />}
             {isOther ? "Other" : "Google Lead"}
         </Badge>
+    );
+}
+
+// Same helper as Addfollowupdialog's toDatetimeLocalValue — formats a Date
+// into the value a `datetime-local` input expects (local time, no timezone
+// suffix).
+function toDatetimeLocalValue(d: Date): string {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+const TICKET_TYPES = [
+    { label: "Train", value: "TRAIN", icon: TrainFront },
+    { label: "Flight", value: "FLIGHT", icon: Plane },
+];
+
+/**
+ * Whether the client's travel ticket is booked, and the specifics — set by
+ * the lead manager at intake (Add/Edit Query) but often only as a bare
+ * "booked: yes" without the route, since they may not know it yet. Editable
+ * in place here so the assigned exec — who actually gets these details from
+ * the client — can fill in or correct the rest, same shape as
+ * ClientMessageCard above.
+ */
+function TicketDetailsCard({
+    queryId, ticketBooked, ticketType, ticketFrom, ticketTo, ticketDateTime, onSaved,
+}: {
+    queryId: string;
+    ticketBooked: boolean;
+    ticketType: string | null;
+    ticketFrom: string | null;
+    ticketTo: string | null;
+    ticketDateTime: Date | null;
+    onSaved?: () => void;
+}) {
+    const [isPending, startTransition] = useTransition();
+    const [editing, setEditing] = useState(false);
+    const [booked, setBooked] = useState(ticketBooked);
+    const [type, setType] = useState(ticketType ?? "TRAIN");
+    const [from, setFrom] = useState(ticketFrom ?? "");
+    const [to, setTo] = useState(ticketTo ?? "");
+    const [dateTimeValue, setDateTimeValue] = useState(
+        ticketDateTime ? toDatetimeLocalValue(new Date(ticketDateTime)) : "",
+    );
+
+    function resetDraft() {
+        setBooked(ticketBooked);
+        setType(ticketType ?? "TRAIN");
+        setFrom(ticketFrom ?? "");
+        setTo(ticketTo ?? "");
+        setDateTimeValue(ticketDateTime ? toDatetimeLocalValue(new Date(ticketDateTime)) : "");
+    }
+
+    function save() {
+        startTransition(async () => {
+            const r = await updateTicketDetails(queryId, {
+                ticketBooked: booked,
+                ticketType: booked ? (type as "TRAIN" | "FLIGHT") : null,
+                ticketFrom: booked ? (from || null) : null,
+                ticketTo: booked ? (to || null) : null,
+                ticketDateTime: booked && dateTimeValue ? new Date(dateTimeValue).toISOString() : null,
+            });
+            if (r.success) {
+                setEditing(false);
+                onSaved?.();
+            } else {
+                toast.error(r.message);
+            }
+        });
+    }
+
+    return (
+        <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5 dark:border-sky-900 dark:bg-sky-950/20">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-400">
+                    <Ticket className="h-3.5 w-3.5" />
+                    Ticket Booking
+                </p>
+                {!editing && (
+                    <button
+                        type="button"
+                        onClick={() => setEditing(true)}
+                        title="Edit"
+                        className="text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-300 cursor-pointer"
+                    >
+                        <Pencil className="h-3 w-3" />
+                    </button>
+                )}
+            </div>
+
+            {editing ? (
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-foreground/80">Already booked?</span>
+                        <Switch size="sm" checked={booked} onCheckedChange={setBooked} />
+                    </div>
+                    {booked && (
+                        <>
+                            <div className="flex flex-wrap gap-1.5">
+                                {TICKET_TYPES.map((t) => (
+                                    <button
+                                        key={t.value}
+                                        type="button"
+                                        onClick={() => setType(t.value)}
+                                        className={cn(
+                                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors",
+                                            type === t.value
+                                                ? "bg-sky-600 text-white border-sky-600"
+                                                : "bg-white/70 border-sky-200 text-foreground/70 dark:bg-black/20 dark:border-sky-900/50",
+                                        )}
+                                    >
+                                        <t.icon className="h-3 w-3" /> {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                    value={from}
+                                    onChange={(e) => setFrom(e.target.value)}
+                                    placeholder="From"
+                                    className="h-8 text-xs bg-white/70 border-sky-200 dark:bg-black/20 dark:border-sky-900/50"
+                                />
+                                <Input
+                                    value={to}
+                                    onChange={(e) => setTo(e.target.value)}
+                                    placeholder="To"
+                                    className="h-8 text-xs bg-white/70 border-sky-200 dark:bg-black/20 dark:border-sky-900/50"
+                                />
+                            </div>
+                            <Input
+                                type="datetime-local"
+                                value={dateTimeValue}
+                                onChange={(e) => setDateTimeValue(e.target.value)}
+                                className="h-8 text-xs bg-white/70 border-sky-200 dark:bg-black/20 dark:border-sky-900/50"
+                            />
+                        </>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" className="h-7 gap-1 text-xs" disabled={isPending} onClick={save}>
+                            <Save className="h-3 w-3" /> {isPending ? "Saving…" : "Save"}
+                        </Button>
+                        <Button
+                            size="sm" variant="ghost" className="h-7 text-xs"
+                            disabled={isPending}
+                            onClick={() => { setEditing(false); resetDraft(); }}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </div>
+            ) : ticketBooked ? (
+                <div className="space-y-1">
+                    <TicketBadge ticketType={ticketType} />
+                    {(ticketFrom || ticketTo) && (
+                        <p className="text-sm text-foreground/90">{ticketFrom ?? "—"} → {ticketTo ?? "—"}</p>
+                    )}
+                    {ticketDateTime && (
+                        <p className="text-xs text-muted-foreground">{istDateTime(ticketDateTime)}</p>
+                    )}
+                </div>
+            ) : (
+                <button
+                    type="button"
+                    onClick={() => setEditing(true)}
+                    className="text-xs text-sky-600 hover:underline dark:text-sky-400 cursor-pointer"
+                >
+                    + Add ticket details
+                </button>
+            )}
+        </div>
     );
 }
 
@@ -126,6 +298,11 @@ export type SalesQuery = {
   message: string | null;
   status: string;
   source: string;
+  ticketBooked: boolean;
+  ticketType: string | null;
+  ticketFrom: string | null;
+  ticketTo: string | null;
+  ticketDateTime: Date | null;
   createdAt: Date;
   assignedTo: string | null;
   assignedToName: string | null;
@@ -456,6 +633,15 @@ export function SalesQueryDetailSheet({
                     )}
 
                     <ClientMessageCard queryId={query.id} message={query.message} onSaved={onRefresh} />
+                    <TicketDetailsCard
+                        queryId={query.id}
+                        ticketBooked={query.ticketBooked}
+                        ticketType={query.ticketType}
+                        ticketFrom={query.ticketFrom}
+                        ticketTo={query.ticketTo}
+                        ticketDateTime={query.ticketDateTime}
+                        onSaved={onRefresh}
+                    />
 
                     {/* Notes — e.g. context the lead manager left when assigning
                         this query. Shown right here, before the fold, rather

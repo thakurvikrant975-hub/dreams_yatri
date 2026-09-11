@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/app/lib/db";
 import { dashboardAuth } from "@/app/lib/auth-dashboard";
 import { z } from "zod";
-import { Prisma, QuerySource as QuerySourceEnum } from "@/app/generated/prisma";
+import { Prisma, QuerySource as QuerySourceEnum, TicketType as TicketTypeEnum } from "@/app/generated/prisma";
 import { actionError } from "@/app/lib/action-error";
 import { getBoolSetting, setBoolSetting, SETTINGS_KEYS } from "@/app/lib/system-settings";
 import { autoAssignLead, ACTIVE_PIPELINE_STATUSES } from "@/app/lib/queries/auto-assign";
@@ -51,6 +51,13 @@ export type QueryStatus =
 // name QuerySourceEnum is also bound to a real runtime value in this module,
 // which stopped Next's build from treating a same-named re-export as erased.
 export type QuerySource = keyof typeof QuerySourceEnum;
+
+/** Only TRAIN/FLIGHT are offered in the ticket-booking UI even though the
+ * underlying enum (shared with custom_package_tickets' priced ticket legs)
+ * has more values — reusing it here means a query's "is it booked" flag and
+ * a package's own priced tickets can never drift into two incompatible
+ * vocabularies. */
+export type TicketType = keyof typeof TicketTypeEnum;
 
 export type CallOutcome =
     | "RECEIVED"
@@ -141,6 +148,14 @@ export type PackageQuery = {
     destination: string | null;
     travelDate: Date | null;
     groupSize: number | null;
+    /** Whether the client's own travel ticket is already booked — see the
+     * `ticketBooked` doc comment on the package_queries model. The four
+     * fields below are only meaningful when this is true. */
+    ticketBooked: boolean;
+    ticketType: TicketType | null;
+    ticketFrom: string | null;
+    ticketTo: string | null;
+    ticketDateTime: Date | null;
     source: QuerySource;
     status: QueryStatus;
     verified: boolean;
@@ -1034,6 +1049,63 @@ export async function updateQueryMessage(queryId: string, message: string): Prom
     }
 }
 
+// ── Ticket booking details ──────────────────────────────────────────────────
+// Set at intake (Add/Edit Query, marketing side) or filled in/refined later
+// by the assigned sales exec once they actually know the specifics — same
+// "editable in place" shape as updateQueryMessage above, called from both
+// routes' detail sheets.
+
+const ticketDetailsSchema = z.object({
+    ticketBooked: z.boolean(),
+    ticketType: z.nativeEnum(TicketTypeEnum).nullable(),
+    ticketFrom: z.string().max(200).nullable(),
+    ticketTo: z.string().max(200).nullable(),
+    /** ISO instant, or null — see manualQuerySchema's ticketDateTime for why
+     * this is converted client-side rather than parsed here. */
+    ticketDateTime: z.string().nullable(),
+});
+
+export async function updateTicketDetails(
+    queryId: string,
+    input: z.infer<typeof ticketDetailsSchema>,
+): Promise<ActionResult> {
+    const parsed = ticketDetailsSchema.safeParse(input);
+    if (!parsed.success) {
+        return { success: false, message: parsed.error.issues[0]?.message ?? "Validation failed" };
+    }
+
+    try {
+        const { actor } = await getCurrentActor();
+        const { ticketBooked, ticketType, ticketFrom, ticketTo, ticketDateTime } = parsed.data;
+
+        await db.package_queries.update({
+            where: { id: queryId },
+            data: {
+                ticketBooked,
+                ticketType: ticketBooked ? ticketType : null,
+                ticketFrom: ticketBooked ? (ticketFrom?.trim() || null) : null,
+                ticketTo: ticketBooked ? (ticketTo?.trim() || null) : null,
+                ticketDateTime: ticketBooked && ticketDateTime ? new Date(ticketDateTime) : null,
+            },
+        });
+
+        await logTimeline(
+            queryId,
+            ticketBooked
+                ? `🎟️ Ticket booking details updated${ticketType ? ` — ${ticketType === "FLIGHT" ? "Flight" : "Train"}` : ""}${ticketFrom && ticketTo ? ` (${ticketFrom} → ${ticketTo})` : ""}`
+                : `🎟️ Ticket marked as not booked`,
+            actor?.id, actor?.name ?? undefined,
+        ).catch((e) => console.error("[updateTicketDetails] logTimeline failed:", e));
+
+        revalidatePath("/dashboard/queries");
+        revalidatePath("/dashboard/sales-query");
+        return { success: true, data: undefined, message: "Ticket details updated" };
+    } catch (e) {
+        console.error(e);
+        return actionError(e);
+    }
+}
+
 // ── Rejection reasons CRUD ────────────────────────────────────────────────────
 
 const reasonSchema = z.object({
@@ -1143,6 +1215,18 @@ const manualQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum).default("PHONE_CALL"),
+    // Hidden input mirrors whatsappSameAsPhone's "explicit true/false
+    // string" convention — a plain checkbox would omit the field entirely
+    // when unchecked, which is indistinguishable from "not submitted yet".
+    ticketBooked: z.string().optional().transform((v) => v === "true"),
+    ticketType: z.nativeEnum(TicketTypeEnum).optional(),
+    ticketFrom: z.string().max(200).optional(),
+    ticketTo: z.string().max(200).optional(),
+    // An ISO instant (converted client-side from the datetime-local input,
+    // same reason Addfollowupdialog converts followUpAt before it leaves
+    // the browser — parsing a bare "YYYY-MM-DDTHH:mm" string server-side
+    // would use the server's timezone, not the user's).
+    ticketDateTime: z.string().optional(),
 }).refine(
     (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
     { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
@@ -1165,6 +1249,11 @@ export async function createManualQuery(
         travelDate: formData.get("travelDate") || undefined,
         message: formData.get("message") || undefined,
         source: formData.get("source") || "PHONE_CALL",
+        ticketBooked: formData.get("ticketBooked") || undefined,
+        ticketType: formData.get("ticketType") || undefined,
+        ticketFrom: formData.get("ticketFrom") || undefined,
+        ticketTo: formData.get("ticketTo") || undefined,
+        ticketDateTime: formData.get("ticketDateTime") || undefined,
     });
 
     if (!parsed.success) {
@@ -1233,6 +1322,11 @@ export async function createManualQuery(
                 status: "VERIFIED",
                 verified: false,
                 leadProfileId: profile.id,
+                ticketBooked: parsed.data.ticketBooked,
+                ticketType: parsed.data.ticketBooked ? (parsed.data.ticketType ?? null) : null,
+                ticketFrom: parsed.data.ticketBooked ? (parsed.data.ticketFrom?.trim() || null) : null,
+                ticketTo: parsed.data.ticketBooked ? (parsed.data.ticketTo?.trim() || null) : null,
+                ticketDateTime: parsed.data.ticketBooked && parsed.data.ticketDateTime ? new Date(parsed.data.ticketDateTime) : null,
             },
         });
 
@@ -1261,6 +1355,11 @@ const updateQuerySchema = z.object({
     travelDate: z.string().optional(),
     message: z.string().max(2000).optional(),
     source: z.nativeEnum(QuerySourceEnum),
+    ticketBooked: z.string().optional().transform((v) => v === "true"),
+    ticketType: z.nativeEnum(TicketTypeEnum).optional(),
+    ticketFrom: z.string().max(200).optional(),
+    ticketTo: z.string().max(200).optional(),
+    ticketDateTime: z.string().optional(),
 }).refine(
     (data) => data.whatsappSameAsPhone || (data.whatsapp?.trim().length ?? 0) >= 6,
     { message: "Enter a valid WhatsApp number", path: ["whatsapp"] },
@@ -1280,6 +1379,11 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
         travelDate: formData.get("travelDate") || undefined,
         message: formData.get("message") || undefined,
         source: formData.get("source"),
+        ticketBooked: formData.get("ticketBooked") || undefined,
+        ticketType: formData.get("ticketType") || undefined,
+        ticketFrom: formData.get("ticketFrom") || undefined,
+        ticketTo: formData.get("ticketTo") || undefined,
+        ticketDateTime: formData.get("ticketDateTime") || undefined,
     });
 
     if (!parsed.success) {
@@ -1314,6 +1418,11 @@ export async function updateQuery(queryId: string, formData: FormData): Promise<
                 travelDate: parsed.data.travelDate ? new Date(parsed.data.travelDate) : null,
                 message: parsed.data.message || null,
                 source: parsed.data.source,
+                ticketBooked: parsed.data.ticketBooked,
+                ticketType: parsed.data.ticketBooked ? (parsed.data.ticketType ?? null) : null,
+                ticketFrom: parsed.data.ticketBooked ? (parsed.data.ticketFrom?.trim() || null) : null,
+                ticketTo: parsed.data.ticketBooked ? (parsed.data.ticketTo?.trim() || null) : null,
+                ticketDateTime: parsed.data.ticketBooked && parsed.data.ticketDateTime ? new Date(parsed.data.ticketDateTime) : null,
             },
         });
 

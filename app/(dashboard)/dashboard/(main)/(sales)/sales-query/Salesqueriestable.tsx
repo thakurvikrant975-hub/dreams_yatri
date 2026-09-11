@@ -20,6 +20,7 @@ import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { MinNumberFilter } from "../../components/dashboard/MinNumberFilter";
 import { Stats } from "../../components/dashboard/Stats";
 import { SalesQueryStatusBadge, PackageVerificationBadge, PackageSentBadge, HotelRequestBadge, LibraryStatusBadge } from "./Salesquerybadges";
+import { TicketIconBadge } from "../../components/dashboard/CustomBadges";
 import { AddFollowUpDialog } from "./Addfollowupdialog";
 import { CallLogDialog } from "./CallLogDialog";
 import { PackageDetailsDialog } from "./Packagedetailsdialog";
@@ -453,6 +454,12 @@ export function SalesQueriesTable({
                             >
                                 <MessageSquare className="h-2.5 w-2.5" />
                             </button>
+                        )}
+                        {q.ticketBooked && (
+                            <TicketIconBadge
+                                ticketType={q.ticketType}
+                                title={`${q.ticketType === "FLIGHT" ? "Flight" : "Train"} ticket booked${q.ticketFrom && q.ticketTo ? ` — ${q.ticketFrom} → ${q.ticketTo}` : ""}`}
+                            />
                         )}
                     </div>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">

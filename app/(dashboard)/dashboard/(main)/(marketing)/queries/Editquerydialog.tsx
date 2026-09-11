@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
-import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2, MessageCircle } from "lucide-react";
+import { Pencil, MapPin, Users, Calendar, Globe, MessageSquare, User, Loader2, MessageCircle, Ticket, Plane, TrainFront } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -46,6 +46,16 @@ function SectionLabel({ icon: Icon, label }: { icon: React.ElementType; label: s
     );
 }
 
+// Same helper as Addquerydialog's / Addfollowupdialog's.
+function toDatetimeLocalValue(d: Date): string {
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+const TICKET_TYPES = [
+    { label: "Train", value: "TRAIN", icon: TrainFront },
+    { label: "Flight", value: "FLIGHT", icon: Plane },
+];
+
 const SOURCES = [
     { label: "Phone Call",       value: "PHONE_CALL" },
     { label: "WhatsApp Meta",    value: "WHATSAPP" },
@@ -75,6 +85,13 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
     const [errors, setErrors]           = useState<Record<string, string[]>>({});
     const [source, setSource]           = useState(query.source);
     const [differentWhatsapp, setDifferentWhatsapp] = useState(!query.whatsappSameAsPhone);
+    const [ticketBooked, setTicketBooked] = useState(query.ticketBooked);
+    const [ticketType, setTicketType]     = useState<string>(query.ticketType ?? "TRAIN");
+    const [ticketFrom, setTicketFrom]     = useState(query.ticketFrom ?? "");
+    const [ticketTo, setTicketTo]         = useState(query.ticketTo ?? "");
+    const [ticketDateTimeValue, setTicketDateTimeValue] = useState(
+        query.ticketDateTime ? toDatetimeLocalValue(new Date(query.ticketDateTime)) : "",
+    );
 
     const [destinations, setDestinations] = useState<DestinationOption[]>([]);
     const [packages, setPackages]         = useState<PackageOption[]>([]);
@@ -117,6 +134,11 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         setErrors({});
         setSource(query.source);
         setDifferentWhatsapp(!query.whatsappSameAsPhone);
+        setTicketBooked(query.ticketBooked);
+        setTicketType(query.ticketType ?? "TRAIN");
+        setTicketFrom(query.ticketFrom ?? "");
+        setTicketTo(query.ticketTo ?? "");
+        setTicketDateTimeValue(query.ticketDateTime ? toDatetimeLocalValue(new Date(query.ticketDateTime)) : "");
 
         setLoadingDests(true);
         getDestinationsForQuery().then((dests) => {
@@ -200,6 +222,11 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
         // Send the destination name (not the composite id::name value)
         formData.set("destination", parsedDest?.name ?? query.destination ?? "");
         formData.set("packageName", selectedPkgTitle);
+        formData.set("ticketBooked", String(ticketBooked));
+        formData.set("ticketType", ticketType);
+        formData.set("ticketFrom", ticketFrom);
+        formData.set("ticketTo", ticketTo);
+        formData.set("ticketDateTime", ticketDateTimeValue ? new Date(ticketDateTimeValue).toISOString() : "");
 
         startTransition(async () => {
             try {
@@ -412,6 +439,66 @@ export function EditQueryDialog({ query, children, onDone }: Props) {
                                 defaultValue={travelDateValue}
                             />
                         </div>
+                    </div>
+
+                    <SectionLabel icon={Ticket} label="Ticket Booking" />
+
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label>Has the client already booked their ticket?</Label>
+                            <Switch size="sm" checked={ticketBooked} onCheckedChange={setTicketBooked} />
+                        </div>
+
+                        {ticketBooked && (
+                            <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                                <div className="flex flex-wrap gap-1.5">
+                                    {TICKET_TYPES.map((t) => (
+                                        <button
+                                            key={t.value}
+                                            type="button"
+                                            onClick={() => setTicketType(t.value)}
+                                            className={[
+                                                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+                                                ticketType === t.value
+                                                    ? "bg-primary text-primary-foreground border-primary"
+                                                    : "bg-background hover:bg-muted border-border text-muted-foreground",
+                                            ].join(" ")}
+                                        >
+                                            <t.icon className="h-3.5 w-3.5" /> {t.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="edit-ticketFrom">From</Label>
+                                        <Input
+                                            id="edit-ticketFrom"
+                                            value={ticketFrom}
+                                            onChange={(e) => setTicketFrom(e.target.value)}
+                                            placeholder="e.g. Delhi"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label htmlFor="edit-ticketTo">To</Label>
+                                        <Input
+                                            id="edit-ticketTo"
+                                            value={ticketTo}
+                                            onChange={(e) => setTicketTo(e.target.value)}
+                                            placeholder="e.g. Srinagar"
+                                        />
+                                    </div>
+                                    <div className="col-span-2 space-y-1.5">
+                                        <Label htmlFor="edit-ticketDateTime">Date &amp; Time</Label>
+                                        <Input
+                                            id="edit-ticketDateTime"
+                                            type="datetime-local"
+                                            value={ticketDateTimeValue}
+                                            onChange={(e) => setTicketDateTimeValue(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <SectionLabel icon={Globe} label="Source" />
