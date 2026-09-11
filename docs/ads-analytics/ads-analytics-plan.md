@@ -404,18 +404,36 @@ second run changes nothing but `lastSeenAt`: zero budget-history rows added. ~6 
 
 ---
 
-## Step 4 — Stats sync
+## Step 4 — Stats sync  ✅ COMPLETE (dev)
 
-`sync-stats.service.ts`, with a **rolling lookback** (default 30 days, overridable) that
-re-upserts rather than inserting — see principle 4.
+[`app/lib/ads/google/sync-stats.ts`](<../../app/lib/ads/google/sync-stats.ts>), over any date
+window, in month-sized pieces:
 
-- Daily at account / campaign / ad group / ad level: cost, impressions, clicks, conversions,
-  conversionsValue, `search_budget_lost_impression_share`
-- Hourly at **campaign level only**
-- Budget snapshot into `ads_campaign_budget_history` on every run
+- **Daily** per campaign (cost, impressions, clicks, Google's conversions and value, and the
+  search impression-share / budget-lost / rank-lost ratios), per ad group and per ad.
+- **Hourly** per campaign.
+- **Google's answer for the window replaces ours.** Every row a run writes carries its
+  `syncedAt`; afterwards, rows in the window left older than that — ones Google no longer
+  reports — are deleted. Only after every write succeeded, so a failure part-way loses nothing.
+- Metrics for an entity the structure sync hasn't written yet are counted and set aside instead
+  of failing the insert on its foreign key; the re-read window picks them up next run.
+- [`app/lib/ads/dates.ts`](<../../app/lib/ads/dates.ts>) — report dates as `YYYY-MM-DD` strings
+  in the account's timezone, arithmetic at UTC midnight; `npm run test:ads-dates` pins the edges
+  (IST midnight, leap days, a year cut into windows with no gap or repeat).
 
-**Done when:** last-7-days cost per campaign reconciles against the Google Ads UI within
-rounding.
+`npm run ads:sync-stats` re-reads the last 30 days (what the schedule will do); `-- --days N`,
+`-- --from … --to …`, or `-- --since-start` for a full backfill.
+
+Field notes (v25): int64 metrics arrive as strings, doubles as numbers; impression share
+reports "<10%" as `0.0999` and ">90%" as `0.9001` — display them as bounds, not figures. Hourly
+data reaches back to the account's start.
+
+**Verified 2026-09-11 against the live account, into dev.** Full backfill 2025-08-21 → today:
+4,120 campaign-days, 4,827 ad-group-days, 5,160 ad-days, 33,516 campaign-hours in ~2 minutes;
+the 7-day run takes ~8 s. Reconciled against Google's own totals for the same ranges, per
+campaign, on cost, clicks and impressions — **exact**: ₹46,529 for the last 7 days and
+₹22,94,862 since the start, zero campaigns differing. Hourly rows add up to their daily row on
+every campaign-day, and ad groups to their Search campaign on all 4,119 campaign-days.
 
 ---
 

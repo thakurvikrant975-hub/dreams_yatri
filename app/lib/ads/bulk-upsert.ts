@@ -16,6 +16,8 @@ import { Prisma } from "@/app/generated/prisma/client";
 
 /** Anything that runs raw SQL: the app's client, the scripts' client, a transaction. */
 export type RawExecutor = { $executeRaw(query: Prisma.Sql): Promise<number> };
+/** The same, for reads. */
+export type RawQuerier = { $queryRaw<T = unknown>(query: Prisma.Sql): PromiseLike<T> };
 
 const q = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
