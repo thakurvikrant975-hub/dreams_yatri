@@ -26,6 +26,8 @@ const URLS: Record<string, string> = {
   "a Search click": "?gclid=EAIaTEST123&campaignid=21436587&adgroupid=16273849506&creative=701234567890&keyword=kerala+packages&matchtype=e&network=g&device=m&targetid=kwd-301234567",
   "PMax placeholders": "?gclid=X&campaignid=111&adgroupid={adgroupid}&keyword=&network=x",
   "a literal {campaignid}": "?gclid=X&campaignid={campaignid}",
+  "auto-tagging with no suffix (production today)": "?gad_source=1&gad_campaignid=23077586127&gclid=Cj0KCQjwTEST",
+  "suffix and auto-tagging together": "?gclid=G&campaignid=111&gad_campaignid=999",
   "an iOS gbraid": "?gbraid=0AAAAB&campaignid=5",
   "gclid beats wbraid": "?wbraid=W1&gclid=G1",
   "percent- and plus-encoded keyword": "?gclid=G&keyword=kerala%20honeymoon+packages",

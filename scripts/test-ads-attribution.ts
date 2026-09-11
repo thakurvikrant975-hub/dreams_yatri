@@ -45,6 +45,11 @@ check("a Search click, every field", readAdAttribution(SEARCH_CLICK, CLICKED), {
 check("PMax: unfilled and blank placeholders are dropped",
   readAdAttribution("?gclid=X&campaignid=111&adgroupid={adgroupid}&keyword=&network=x"),
   { adsClickId: "X", adsClickIdType: "GCLID", adsCampaignId: "111", adsNetwork: "x" });
+check("auto-tagging's gad_campaignid names the campaign with no suffix at all",
+  readAdAttribution("?gad_source=1&gad_campaignid=23077586127&gclid=Cj0KCQjwTEST"),
+  { adsClickId: "Cj0KCQjwTEST", adsClickIdType: "GCLID", adsCampaignId: "23077586127" });
+check("the suffix's campaignid is kept when both are there",
+  readAdAttribution("?gclid=G&campaignid=111&gad_campaignid=999")?.adsCampaignId, "111");
 check("iOS web-to-app click keeps its type", readAdAttribution("?gbraid=0AAAAB&campaignid=5"),
   { adsClickId: "0AAAAB", adsClickIdType: "GBRAID", adsCampaignId: "5" });
 check("gclid wins over wbraid, as in dy_capture.php", readAdAttribution("?wbraid=W1&gclid=G1"),
@@ -67,6 +72,12 @@ console.log("\nwhat a lead is written with:");
 check("the caller's own ad wins over its pageUrl",
   attributionFor({ adsClickId: "FROM_FORM", adsClickIdType: "GCLID" }, "https://x.in/p?gclid=FROM_URL&campaignid=9"),
   { adsClickId: "FROM_FORM", adsClickIdType: "GCLID" });
+check("a .com lead's landing URL, as production stores it today",
+  attributionFor(
+    { utmSource: "google", utmMedium: "cpc" },
+    "https://dreamsyatri.com/rishikesh-tour-packages/?gad_source=1&gad_campaignid=23077586127&gclid=Cj0KCQjwTEST",
+  ),
+  { adsClickId: "Cj0KCQjwTEST", adsClickIdType: "GCLID", adsCampaignId: "23077586127", utmSource: "google", utmMedium: "cpc" });
 check("an old bundle that sent nothing falls back to its landing URL",
   attributionFor({}, "https://dreamsyatri.in/packages/kerala?gclid=G1&campaignid=77&adgroupid=88"),
   { adsClickId: "G1", adsClickIdType: "GCLID", adsCampaignId: "77", adsAdGroupId: "88" });

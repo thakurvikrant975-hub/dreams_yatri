@@ -82,6 +82,15 @@ function dy_detect_ads($get, $landingHit)
         if ($v !== null) $ads[$field] = $v;
     }
 
+    // Auto-tagging appends the campaign id itself as gad_campaignid, suffix or
+    // no suffix — so the campaign is known on every ad click, including any
+    // campaign the ValueTrack suffix never reached. When both are present they
+    // name the same campaign, and the suffix's own campaignid is kept.
+    if (!isset($ads['adsCampaignId'])) {
+        $auto = $val('gad_campaignid');
+        if ($auto !== null) $ads['adsCampaignId'] = $auto;
+    }
+
     $isAd = isset($ads['adsClickId']) || isset($ads['adsCampaignId']) || isset($ads['adsAdGroupId']);
     if ($landingHit && $isAd) $ads['adsClickAt'] = gmdate('Y-m-d\TH:i:s\Z');
 

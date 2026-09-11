@@ -106,6 +106,14 @@ export function readAdAttribution(search: string, clickedAt?: Date): AdAttributi
     const v = param(q, name);
     if (v) (out as Record<string, string | undefined>)[field] = v;
   }
+  // Auto-tagging appends the campaign id itself as gad_campaignid, suffix or
+  // no suffix — so the campaign is known on every ad click, including any
+  // campaign the ValueTrack suffix never reached. When both are present they
+  // name the same campaign, and the suffix's own campaignid is kept.
+  if (!out.adsCampaignId) {
+    const auto = param(q, "gad_campaignid");
+    if (auto) out.adsCampaignId = auto;
+  }
   if (Object.keys(out).length === 0) return null;
   if (clickedAt && isAdClick(out)) out.adsClickAt = clickedAt.toISOString();
   return out;
