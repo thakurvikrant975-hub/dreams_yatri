@@ -369,20 +369,38 @@ micros and decimals survive exactly, and a report date stays the calendar day Go
 
 ---
 
-## Step 3 — Client + structure sync
+## Step 3 — Client + structure sync  ✅ COMPLETE (dev)
 
-**Call the REST API with plain `fetch`** rather than adding a gRPC client library. GAQL over
-`POST /v25/customers/{id}/googleAds:searchStream` is JSON in, JSON out; `lib/` currently holds
-one file, the official clients are heavy for Vercel functions, and this avoids being pinned to
-a third party's release cadence when Google bumps versions. The cost is ~80 lines of client
-code we own.
+**The REST API with plain `fetch`**, not a gRPC client library: GAQL over
+`POST /v25/customers/{id}/googleAds:searchStream` is JSON in, JSON out, the official clients are
+heavy for Vercel functions, and this avoids a third party's release cadence when Google bumps
+versions.
 
-- `app/actions/ads/google/client.ts` — token refresh + GAQL execution
-- `app/actions/ads/google/sync-structure.service.ts` — `customer_client` → `campaign` →
-  `ad_group` → `ad_group_ad` → `campaign_budget`
-- `npm run ads:sync-structure`
+- [`app/lib/ads/google/client.ts`](<../../app/lib/ads/google/client.ts>) — token + GAQL (Step 0)
+- [`app/lib/ads/google/sync-structure.ts`](<../../app/lib/ads/google/sync-structure.ts>) —
+  `customer_client` → `campaign_budget` → `campaign` → `ad_group` → `ad_group_ad`, parents first,
+  REMOVED included; opens a budget-history row whenever an amount changes
+- [`app/lib/ads/bulk-upsert.ts`](<../../app/lib/ads/bulk-upsert.ts>) — one
+  `INSERT … ON CONFLICT DO UPDATE` per chunk instead of a round trip per row; Step 4's tens of
+  thousands of stats rows need it, and structure uses it for consistency
+- [`app/lib/ads/sync-run.ts`](<../../app/lib/ads/sync-run.ts>) — every run logged in
+  `ads_sync_runs`, failures included
+- `npm run ads:sync-structure` — runs it once against `DATABASE_URL`, printing the target first
 
-**Done when:** campaign and ad-group counts match the Google Ads UI exactly.
+The sync functions **take the database client as an argument** instead of importing
+`app/lib/db`: a tsx script can't load that module (see `scripts/_db.ts`), and the scheduled
+route and the script must run the same code. Their parameter types name only the operations
+used, because the app's client is wrapped in a retry extension that makes `Pick<PrismaClient>`
+reject it — both clients are checked against the types.
+
+Field notes from the live API (v25): a campaign's dates come as `start_date_time` /
+`end_date_time` (`"2025-08-29 16:20:02"`, account timezone), not `start_date`; references
+between entities are resource names (`customers/…/campaignBudgets/123`); int64s arrive as
+strings; unset fields are omitted.
+
+**Verified 2026-09-11 against the live account, into dev:** campaigns 42, ad groups 84, ads 87,
+budgets 58 — each equal to Google's own count (10 enabled, 25 paused, 7 removed campaigns). A
+second run changes nothing but `lastSeenAt`: zero budget-history rows added. ~6 s a run.
 
 ---
 

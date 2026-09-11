@@ -32,6 +32,7 @@
     "test:ads-attrib": "tsx scripts/test-ads-attribution.ts",
     "test:ads-parity": "tsx scripts/test-ads-attribution-parity.ts",
     "test:google-ads": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/test-google-ads.ts",
+    "ads:sync-structure": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local scripts/ads-sync-structure.ts",
     "test:phone": "tsx scripts/test-phone-identity.ts",
     "test:partner": "tsx scripts/test-partner-share.ts",
     "test:ist": "tsx scripts/test-ist-window.ts",
