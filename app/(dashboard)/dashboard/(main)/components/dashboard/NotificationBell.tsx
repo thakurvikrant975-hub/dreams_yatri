@@ -51,10 +51,10 @@ export function NotificationBell({
     // rather than eagerly loading a list nobody's looking at yet.
     setItems((prev) => (prev ? [{ ...n, readAt: null }, ...prev] : prev));
 
-    // A lead request landing in the queue is time-sensitive for whoever
-    // reviews it — surfaced as a toast (on top of the bell) so it isn't
-    // missed just because the panel is closed.
-    if (n.type === "LEAD_REQUEST_SUBMITTED") {
+    // A lead request landing in the queue, or a query just handed to this
+    // member, is time-sensitive — surfaced as a toast (on top of the bell)
+    // so it isn't missed just because the panel is closed.
+    if (n.type === "LEAD_REQUEST_SUBMITTED" || n.type === "QUERY_ASSIGNED") {
       toast.info(n.title, {
         description: n.body ?? undefined,
         action: n.link ? { label: "Review", onClick: () => router.push(n.link!) } : undefined,
