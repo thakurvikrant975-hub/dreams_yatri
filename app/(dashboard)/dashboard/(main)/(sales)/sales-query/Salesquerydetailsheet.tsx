@@ -39,6 +39,11 @@ import type { SentPackageInfo, CallLogEntry, CallLogStatus } from "./actions";
 import { CloseReason, RejectionReason } from "../../(marketing)/queries/actions";
 import { cn } from "@/app/lib/utils";
 
+// Toggle to bring the "Reject Query" action back into the sheet's button
+// row — currently off so exec-facing sales queries can only be Closed, not
+// Rejected (rejection stays available to the marketing/queries team).
+const SHOW_REJECT_QUERY_BUTTON = false;
+
 // Same color language as CallLogDialog's status picker and the Lead
 // column's call-dot row (Salesqueriestable.tsx) — kept as small local
 // copies rather than a shared import since each of the three is a
@@ -526,18 +531,21 @@ export function SalesQueryDetailSheet({
 
                     </div>
 
-                    {/* Action buttons */}
+                    {/* Action buttons — evenly-sized grid instead of a
+                        flex-wrap row, so 2/3/4 items always line up cleanly
+                        instead of wrapping at whatever width the last
+                        button's label happens to need. */}
                     {!isClosed && (
-                        <div className="flex gap-2 pt-3 flex-wrap">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-3">
                             {/* Package Requirements */}
                             <PackageDetailsDialog
                                 query={query as any}
                                 initialRequirements={reqs}
                                 onDone={onRefresh}
                             >
-                                <Button size="sm" variant="outline" className="gap-1.5">
-                                    <ClipboardList className="h-3.5 w-3.5" />
-                                    {reqs ? "Edit Requirements" : "Fill Requirements"}
+                                <Button size="sm" variant="outline" className="w-full gap-1.5">
+                                    <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate">{reqs ? "Edit Requirements" : "Fill Requirements"}</span>
                                 </Button>
                             </PackageDetailsDialog>
 
@@ -549,10 +557,10 @@ export function SalesQueryDetailSheet({
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
+                                    className="w-full gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
                                 >
-                                    <CalendarClock className="h-3.5 w-3.5" />
-                                    Add Follow-Up ({query._count.queryFollowUps})
+                                    <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+                                    <span className="truncate">Add Follow-Up ({query._count.queryFollowUps})</span>
                                 </Button>
                             </AddFollowUpDialog>
 
@@ -565,26 +573,32 @@ export function SalesQueryDetailSheet({
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                    className="w-full gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
                                 >
-                                    <XCircle className="h-3.5 w-3.5" /> Close Query
+                                    <XCircle className="h-3.5 w-3.5 shrink-0" /> Close Query
                                 </Button>
                             </CloseQueryDialog>
 
-                            <RejectQueryDialog
-                                queryId={query.id}
-                                leadName={query.name}
-                                reasons={rejectionReasons}
-                                onDone={onRefresh}
-                            >
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                            {/* Reject Query — hidden for now (product call to
+                                keep rejection out of the exec-facing sheet);
+                                dialog + import kept in place so it's a
+                                one-line flip to bring back. */}
+                            {SHOW_REJECT_QUERY_BUTTON && (
+                                <RejectQueryDialog
+                                    queryId={query.id}
+                                    leadName={query.name}
+                                    reasons={rejectionReasons}
+                                    onDone={onRefresh}
                                 >
-                                    <XCircle className="h-3.5 w-3.5" /> Reject Query
-                                </Button>
-                            </RejectQueryDialog>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                                    >
+                                        <XCircle className="h-3.5 w-3.5 shrink-0" /> Reject Query
+                                    </Button>
+                                </RejectQueryDialog>
+                            )}
                         </div>
                     )}
 
