@@ -125,11 +125,15 @@ store **hourly at campaign level, daily at ad group and ad level** — hourly ad
   do not work with `gbraid` / `wbraid`.
 
 **Access levels.** The developer token lives on the *manager* account (API Center). It starts
-at **Test** — which cannot read production accounts. **Basic** (15,000 operations/day,
-reviewed in ~5 business days) is what we need; a handful of accounts uses perhaps 20–50
-operations a day. Standard is for tools serving external customers and is not required.
-Auth is **OAuth2 with a refresh token** — plain service accounts are not supported. With an
-MCC, every call passes `login-customer-id` = the MCC id.
+at **Test** — which cannot read production accounts. **Explorer** (2,880 production
+operations/day) is enough for us — a handful of accounts uses perhaps 20–50 a day — and is
+what our token has. Basic (15,000/day) and Standard (unlimited) are for heavier tools.
+
+**Auth is a service account**, added as a read-only user on the MCC (Admin → Access and
+security). Google Ads accepts this directly now, with no Workspace delegation, and it suits an
+unattended sync far better than a person's OAuth refresh token — which dies with a password
+change, a departure, or after seven days for an OAuth app left in "testing". With an MCC,
+every call also passes `login-customer-id` = the MCC id.
 
 ---
 
@@ -155,23 +159,43 @@ reconstructed.
 
 ---
 
-## Step 0 — Google Ads access & auth handshake
+## Step 0 — Google Ads access & auth handshake  🟡 IN PROGRESS
 
-Blocking lead time; nothing from Step 3 onward works without it. Independent of Step 1.
+Nothing from Step 3 onward works without it. Independent of Step 1.
 
-1. Confirm the MCC covers every ad account (it does — one credential).
-2. API Center → confirm the developer token's **access level**. If it already reads Basic,
-   this step collapses to OAuth only and saves ~5 business days.
-3. Google Cloud project → enable Google Ads API → OAuth consent (Internal) → OAuth client
-   (Desktop) → generate a refresh token once.
-4. Secrets: `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_CLIENT_ID`, `GOOGLE_ADS_CLIENT_SECRET`,
-   `GOOGLE_ADS_REFRESH_TOKEN`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID`.
+1. ✅ The MCC covers every ad account — one credential.
+2. ✅ The developer token has **Explorer** access (confirmed 2026-09-11) — enough; no
+   application needed.
+3. In the Google Cloud project the token belongs to (Google Ads API enabled there): **IAM &
+   Admin → Service Accounts → create** `dy-ads-sync`, no Cloud roles; **Keys → JSON**.
+4. Google Ads **MCC → Admin → Access and security → Users → +** → the service account's
+   email, **Read only**. (Standard access is needed only for Step 9's uploads.)
+5. Secrets, in `.env.local` locally and in Vercel for Step 5:
+   `GOOGLE_ADS_DEVELOPER_TOKEN`, `GOOGLE_ADS_LOGIN_CUSTOMER_ID` (MCC, digits), and
+   `GOOGLE_ADS_SERVICE_ACCOUNT` — the JSON key **base64-encoded onto one line**, because its
+   multi-line private key is exactly what `.env` parsers and dashboards mangle:
+   `base64 -i key.json | tr -d '\n'`.
+
+Code: [`app/lib/ads/google/auth.ts`](<../../app/lib/ads/google/auth.ts>) signs the service
+account's JWT with `node:crypto` and trades it for an hour's bearer token;
+[`client.ts`](<../../app/lib/ads/google/client.ts>) runs GAQL over REST `searchStream`.
 
 **Done when:** `npm run test:google-ads` prints our real customer ids and names.
 
 ---
 
-## Step 1 — Capture campaign / ad group on the lead  *(foundation)*
+## Step 1 — Capture campaign / ad group on the lead  *(foundation)*  ✅ COMPLETE
+
+**Shipped 2026-09-11** — 1a migrated in dev and prod; 1b live on Vercel; 1c live on
+Hostinger; 1d suffix set in Google Ads. Verified end to end with a test lead on each site,
+and real Google leads now arrive with `adsPlatform`, click id and type.
+
+**Found in production — `gad_campaignid`.** Google's auto-tagging now appends
+`gad_campaignid` (and `gad_source`) to *every* ad click beside the gclid, suffix or not. Both
+parsers read it when the suffix's `campaignid` is absent, so campaign-level attribution never
+depended on 1d, covers any campaign the suffix doesn't reach, and — because landing URLs are
+stored in `pageUrl` — can be backfilled for past leads from the database alone. Ad group,
+creative and keyword still come only from the suffix.
 
 The only step that touches the websites, and the only one whose delay costs data permanently.
 Needs no API access — it can run entirely in parallel with Step 0.
@@ -262,8 +286,15 @@ ignores. SSH access is the one hard prerequisite in Step 1.
 Set an account-level **final URL suffix**:
 
 ```
-utm_source=google&utm_medium=cpc&campaignid={campaignid}&adgroupid={adgroupid}&creative={creative}&keyword={keyword}&matchtype={matchtype}&network={network}&device={device}&targetid={targetid}
+campaignid={campaignid}&adgroupid={adgroupid}&creative={creative}&keyword={keyword}&matchtype={matchtype}&network={network}&device={device}&targetid={targetid}
 ```
+
+No `utm_*` in it (the first draft had `utm_source=google&utm_medium=cpc`): the .com bridge
+already labels Google leads google / cpc, and manual utm tags beside auto-tagging can change
+how Google Analytics attributes the traffic. The **tracking template stays empty** — it is for
+routing clicks through a third-party tracker, and anything wrong in it breaks every click.
+A campaign- or ad-group-level suffix *replaces* the account one for its ads rather than adding
+to it.
 
 A **final URL suffix, never a tracking template or a final-URL edit.** Under Upgraded URLs the
 tracking portion is deliberately separated from the landing page portion so that changing it
