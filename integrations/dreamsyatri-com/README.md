@@ -18,21 +18,29 @@ is not a lead POST, and forwards the ones that are.
         dy_lead_sync.php                 ← signs and POSTs
         dy_capture.php                   ← the hook
 
-    /home/u329953352/public_html/.user.ini
-        auto_prepend_file = /home/u329953352/dy_lead_bridge/dy_capture.php
+    /home/u329953352/domains/dreamsyatri.com/public_html/.htaccess   (line 137, verified 2026-09-11)
+        php_value auto_prepend_file "/home/u329953352/dy_lead_bridge/dy_capture.php"
+
+Not `.user.ini`: this server runs LiteSpeed with `user_ini.filename` disabled,
+so a `.user.ini` looks installed and does nothing. The operational detail —
+what not to touch, how to check it is wired, the `.htaccess` backup to restore —
+is in [`NEW-LANDING-PAGE.md`](./NEW-LANDING-PAGE.md) §8–9.
 
 ## Install
 
 1. `mkdir ~/dy_lead_bridge` and upload the three PHP files.
 2. Copy `dy_config.php.example` to `dy_config.php`, set `DY_LEAD_SECRET`.
 3. Set the same value as `EXTERNAL_LEADS_SECRET` in the Next.js app's env.
-4. Add the `.user.ini` line above. Changes take up to 5 minutes
-   (`user_ini.cache_ttl` is 300).
+4. Add the `php_value` line above to the site's `.htaccess`. Takes effect on
+   the next request.
 
 ## Removing it
 
-Delete the `auto_prepend_file` line from `.user.ini`. Nothing else on the site
-references these files, so that alone fully disables it.
+Delete the `php_value auto_prepend_file` line from the site's `.htaccess`.
+Nothing else on the site references these files, so that alone fully disables
+it. To undo a change to the hook rather than the hook itself, restore its `.bak`
+in `~/dy_lead_bridge/` instead — `.htaccess` also carries the site's rewrites,
+and is the riskier file to edit.
 
 ## Behaviour
 

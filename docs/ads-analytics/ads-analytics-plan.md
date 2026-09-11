@@ -252,8 +252,10 @@ will have blank ad ids for up to 30 days after deploy — expected, self-healing
 chase.
 
 ⚠️ **Deploy is manual.** This file lives at `/home/u329953352/dy_lead_bridge/` on Hostinger,
-outside the repo's deploy path, and `.user.ini` has a 300s cache TTL — so it is an SSH/FTP
-upload plus up to a 5-minute wait. SSH access is the one hard prerequisite in Step 1.
+outside the repo's deploy path — so it is an SSH upload, linted on the server and swapped in
+with an atomic rename (see the integration README). The hook is wired by a `php_value` line in
+`~/domains/dreamsyatri.com/public_html/.htaccess`, not `.user.ini`, which this LiteSpeed server
+ignores. SSH access is the one hard prerequisite in Step 1.
 
 ### 1d — Google Ads UI
 
@@ -418,7 +420,8 @@ makes the migration safe.
 
 **Step 1 has zero blast radius on `.com`.** 1c edits `dy_capture.php`, which is wired in as
 `auto_prepend_file` — no page markup, no forms, no URLs, and rollback is deleting one line
-from `.user.ini`. 1d sets a tracking suffix, which by design does not trigger ad review.
+from the site's `.htaccess`. 1d sets a tracking suffix, which by design does not trigger ad
+review.
 
 **What actually causes ad losses in a landing page migration:**
 
