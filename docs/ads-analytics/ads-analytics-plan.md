@@ -504,10 +504,28 @@ envelope, the `QueryStatus` funnel, and junk rate by ad group.
 
 ---
 
-## Step 8 — Backfill  *(optional, time-boxed)*
+## Step 8 — Backfill  ✅ DONE for campaigns (2026-09-12)
 
-`click_view` resolution of existing `gclid`s — one query per day, last 90 days only. Skip it if
-Step 7 is more urgent; it buys history, not capability.
+Not `click_view` after all — the landing URL each lead already stores in `pageUrl` carries
+Google's auto-tagged `gclid` and `gad_campaignid`, so the campaign behind a past lead was
+already in our database, unparsed. No API, no 90-day limit.
+
+`npm run ads:backfill-leads` (dry run; `-- --apply` writes) reads those URLs with
+**readAdAttribution — the same parser live intake uses** — so a backfilled lead is tagged as a
+new one would be. It fills only empty columns (`COALESCE`), and never invents a click time:
+those landing hits weren't witnessed.
+
+**Applied to production:** 405 leads, 0 unparseable, across 9 campaigns — 11 days of
+campaign-level history (1–12 Sep) instead of one. Ad group and keyword can't be recovered:
+auto-tagging carries no equivalent, so that history starts when the suffix went live on
+2026-09-11. `click_view` remains the only route to ad-group detail for older clicks, within
+its 90 days, if it ever matters enough.
+
+⚠️ **Aggregate each side before joining.** A first pass at cost-per-lead joined per-day spend
+straight to leads and counted each campaign's spend once per lead — Goa read ₹30,60,413
+instead of ₹23,724 (129×). Spend per campaign and leads per campaign are separate
+aggregations that then join one-to-one; Step 6 exists so that lives in one tested place
+instead of each report's SQL.
 
 ---
 
