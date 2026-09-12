@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useTransition } from "react";
-import { formatDistanceToNow, formatDistanceStrict, format } from "date-fns";
+import { formatDistanceToNow, formatDistanceStrict, format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import {
     CheckCircle2,
@@ -32,6 +32,7 @@ import { DeleteQueryDialog } from "./Deletequerydialog";
 import { TableEmptyState } from "../../components/dashboard/TableEmptyState";
 import { TodaysAssignmentDialog } from "./TodaysAssignmentDialog";
 import { MinNumberFilter } from "../../components/dashboard/MinNumberFilter";
+import { DateRangeFilter, describeRange, type DateRangeValue } from "../../components/ui/date-range-filter";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -180,9 +181,27 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     const [minCost, setMinCost] = useState<number | null>(null);
     const [minGroupSize, setMinGroupSize] = useState<number | null>(null);
     const [minDays, setMinDays] = useState<number | null>(null);
+    // null means "no date filter applied" — the button itself still needs
+    // some range to display, so it falls back to `allTimeRange` below rather
+    // than this being threaded through as an optional prop.
+    const [dateRange, setDateRange] = useState<DateRangeValue | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
     const [downloadingReport, setDownloadingReport] = useState<"pdf" | "xlsx" | null>(null);
+
+    const todayIso = format(new Date(), "yyyy-MM-dd");
+    // Earliest "Received" date on file — lets the picker's "All time" preset
+    // (and its calendar's start bound) mean the actual first query, not an
+    // arbitrary two-year fallback.
+    const earliestIso = useMemo(() => {
+        if (queries.length === 0) return undefined;
+        const earliest = queries.reduce(
+            (min, q) => (q.createdAt < min ? q.createdAt : min),
+            queries[0].createdAt,
+        );
+        return format(new Date(earliest), "yyyy-MM-dd");
+    }, [queries]);
+    const allTimeRange: DateRangeValue = { from: earliestIso ?? todayIso, to: todayIso };
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
@@ -233,9 +252,17 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         // query with exactly X days isn't "more than X days".
         const matchDays = minDays === null
             || ((q.requirements?.journey?.noOfDays ?? 0) > minDays);
+        // Compared as "YYYY-MM-DD" strings, inclusive of both ends, matching
+        // DateRangeFilter's own convention — never raw Date instants, which
+        // is how a query received late at night ends up on "the wrong day"
+        // once a timezone is involved.
+        const matchDate = dateRange === null || (() => {
+            const received = format(new Date(q.createdAt), "yyyy-MM-dd");
+            return received >= dateRange.from && received <= dateRange.to;
+        })();
 
         return matchSearch && matchStatus && matchSource && matchVerified && matchMember
-            && matchDestination && matchCost && matchGroupSize && matchDays;
+            && matchDestination && matchCost && matchGroupSize && matchDays && matchDate;
     });
 
     const destinationOptions = useMemo(() => {
@@ -269,7 +296,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
         || filterVerified !== "all" || filterMember !== "all" || filterDestination !== "all"
-        || minCost !== null || minGroupSize !== null || minDays !== null;
+        || minCost !== null || minGroupSize !== null || minDays !== null || dateRange !== null;
 
     // Human-readable recap of whatever's currently narrowing the list, so an
     // exported report is self-explanatory once it's off-screen — "42 queries"
@@ -285,6 +312,7 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         minCost !== null && `Cost ≥ ₹${minCost.toLocaleString("en-IN")}`,
         minGroupSize !== null && `Persons ≥ ${minGroupSize}`,
         minDays !== null && `Days > ${minDays}`,
+        dateRange !== null && `Received: ${describeRange(dateRange, parseISO(todayIso), earliestIso)}`,
     ].filter(Boolean).join(" · ");
 
     // Reports the currently FILTERED list, not just the current page — an
@@ -724,6 +752,12 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                         onChange={(v) => { setMinDays(v); setPage(1); }}
                         placeholder="Any"
                         width="w-32"
+                    />
+                    <DateRangeFilter
+                        value={dateRange ?? allTimeRange}
+                        onApply={(r) => { setDateRange(r); setPage(1); }}
+                        today={todayIso}
+                        earliest={earliestIso}
                     />
                 </TableFilters>
 
