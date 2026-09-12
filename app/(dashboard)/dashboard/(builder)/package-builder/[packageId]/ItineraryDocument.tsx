@@ -937,8 +937,15 @@ function GapBadge({ gaps }: { gaps: Gaps }) {
  * `display` formatter is what lets the stored "11:00" read as "11:00 AM"
  * without rewriting what's saved.
  */
-function StayTimeline({ day, checkInDate, checkOutDate }: {
+function StayTimeline({ day, nights, checkInDate, checkOutDate }: {
   day: DayItinerary;
+  /** How many nights this stay actually runs — the whole run, not this one
+   * day. The pill was hard-coded to "1N" and the check-out date to the next
+   * morning, so a hotel assigned to three nights announced itself as a
+   * one-night stay (14 Oct → 15 Oct) while the two days after it said
+   * "continuing from day 1" — the document contradicting itself about the
+   * same booking. */
+  nights: number;
   checkInDate: Date | null;
   checkOutDate: Date | null;
 }) {
@@ -972,7 +979,7 @@ function StayTimeline({ day, checkInDate, checkOutDate }: {
       <div className="flex-1 flex items-center gap-1 min-w-0 px-1">
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
         <span className="flex items-center gap-1 shrink-0 rounded-md bg-neutral-50 ring-1 ring-inset ring-neutral-300 px-2 py-0.5">
-          <span className="text-[13px] font-medium text-neutral-800">1N</span>
+          <span className="text-[13px] font-medium text-neutral-800">{nights}N</span>
           <StarAndCrescentIcon weight="duotone" className="size-3 text-neutral-400/90 -rotate-20" />
         </span>
         <span className="flex-1 min-w-0 border-b-[0.15em] border-dashed border-neutral-300/70" />
@@ -1477,10 +1484,23 @@ function SummaryCell({ value, action, onOpen }: {
 }
 
 export function DaySummaryTable({
-  itineraries, travelDate, stops = [], adults = 0, childCount = 0,
+  itineraries, travelDate, stops = [], adults = 0, childCount = 0, stayOptions,
 }: {
   itineraries: DayItinerary[];
   travelDate?: string;
+  /** The standards this package is quoted at. With two or more, the Hotel
+   * column lists EVERY one of them rather than the day row alone.
+   *
+   * The day row only ever carries the recommended option (see the note where
+   * stayRuns are built), so this table — the densest view of the trip, and the
+   * one people actually check a quote against — was silently answering "which
+   * hotel" with one standard's while the document above it offered three. A
+   * client comparing the cheapest column and the dearest found only the
+   * cheaper one's hotel named in the summary.
+   *
+   * Absent or single-entry and the original single-hotel cell renders
+   * untouched, which is every package quoted at one standard. */
+  stayOptions?: PreviewData["stayOptions"];
   /** Route stops — used to derive which city each day is in when the day's
    * own hotel doesn't have a location on file yet. */
   stops?: StopInput[];
@@ -1494,6 +1514,9 @@ export function DaySummaryTable({
   const shiftedMeals = computeShiftedMeals(itineraries);
   const dayLocations = deriveDayLocations(stops, itineraries.length);
   const open = (t: DrawerTarget) => () => builder?.openDrawer(t);
+  // One standard is not a comparison — the day row already IS that standard,
+  // so the cell below stays exactly the one it has always been.
+  const quotedStandards = (stayOptions?.length ?? 0) > 1 ? stayOptions! : null;
 
   // Matches the booking voucher's tables (components/voucher/VoucherDocument —
   // ItineraryTable): a solid accent header bar in white type, every cell ruled
@@ -1607,6 +1630,67 @@ export function DaySummaryTable({
               max_adults: d.accommodationMaxAdults,
               max_children: d.accommodationMaxChildren,
             }, d.roomsCount).mattresses;
+            // Every standard's hotel for this night, stacked in the one cell —
+            // the table's answer to the stay columns in the document above, and
+            // read the same way down: the exec's label, then the property, then
+            // the rooms and board that standard actually books.
+            //
+            // Only the standards that HAVE a hotel on this night are listed:
+            // an empty column on a client's quote is an unfinished sentence
+            // (the same rule StayColumns applies), and a departure night where
+            // none of them do falls through to the "—" every empty cell shows.
+            const standardCells = (quotedStandards ?? [])
+              .map((c) => ({ c, cell: c.byDay?.[d.day] }))
+              .filter((x): x is { c: typeof x.c; cell: NonNullable<typeof x.cell> } =>
+                !!x.cell?.hotel?.trim());
+            const standardsCell = standardCells.length > 0 ? (
+              <span className="block space-y-1.5">
+                {standardCells.map(({ c, cell }) => {
+                  const parts = splitManualHotelName(cell.hotel ?? "");
+                  const optionMeal = mealIncludedText(cell.mealPlan ?? "");
+                  return (
+                    <span key={c.id} className="block">
+                      {/* The recommended standard is marked the same way the
+                          document marks it — by the accent, not by a second
+                          badge the table has no room for. */}
+                      <span
+                        className="block text-[11px] font-bold uppercase tracking-widest"
+                        style={{ color: c.isRecommended ? DOC.accent : DOC.inkMuted }}
+                      >
+                        {c.label}
+                      </span>
+                      <span className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-neutral-900">
+                          {titleCase(parts.manualHotelName ?? cell.hotel ?? "")}
+                        </span>
+                        <StayStars raw={cell.starRating ?? ""} />
+                      </span>
+                      {parts.manualRoomName && (
+                        <span className={cn(mutedLine, "mt-0.5")}>
+                          {(cell.roomsResolved ?? 0) > 1 ? `${cell.roomsResolved}× ` : ""}
+                          {titleCase(parts.manualRoomName)}
+                        </span>
+                      )}
+                      {(cell.extraRooms ?? []).map((r, ri) => (
+                        <span key={ri} className={cn(mutedLine, "mt-0.5")}>
+                          + {r.quantity > 1 ? `${r.quantity}× ` : ""}
+                          {titleCase(splitManualHotelName(r.label).manualRoomName ?? r.label)}
+                        </span>
+                      ))}
+                      {optionMeal && (
+                        <span
+                          className="flex items-center gap-1 text-[12px] mt-0.5"
+                          style={{ color: DOC.positive }}
+                        >
+                          <Utensils size={9} color={MEAL_ICON} className="shrink-0" />
+                          {optionMeal}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </span>
+            ) : null;
             return (
               <tr
                 key={d.day}
@@ -1668,7 +1752,10 @@ export function DaySummaryTable({
                     // bed/occupancy blurb ("Twin beds · 3 Stars · Sleeps 3"),
                     // which repeats the star count already shown beside the name
                     // and adds detail this column doesn't need.
-                    value={d.accommodation ? (
+                    //
+                    // With several standards quoted, every one of them is named
+                    // here instead — see quotedStandards.
+                    value={quotedStandards ? standardsCell : d.accommodation ? (
                       <>
                         <span className="flex items-center gap-1.5 flex-wrap">
                           {/* A step darker than the cell around it: the hotel
@@ -2487,7 +2574,8 @@ function StayColumnPicker({
 }
 
 function StayColumns({
-  categories, day, nights, checkIn, checkOut, packageId, searchCity, travelDate, onStayOptionsChanged,
+  categories, day, nights, checkIn, checkOut, checkInDate, checkOutDate, recommendedPhoto,
+  packageId, searchCity, travelDate, onStayOptionsChanged,
 }: {
   /** Present only in the builder — that is what turns the columns editable.
    * Absent on the client's page and in the PDF, which stay read-only. */
@@ -2499,11 +2587,34 @@ function StayColumns({
   onStayOptionsChanged?: () => void | Promise<void>;
   /** Cheapest first, already sorted by the caller. */
   categories: NonNullable<PreviewData["stayOptions"]>;
+  /** The day row's own hotel photo, used ONLY for the recommended column.
+   *
+   * A stay option's cell carries a copy of the photo, but a hotel filled in by
+   * hand (or by the hotel team, before resolveStayPhoto was applied on write)
+   * can leave the copy empty while the day row — which mirrors the recommended
+   * option, and which every other part of this document reads — still has the
+   * picture. The result was the recommended card, the one the client is
+   * steered to, being the single card in the row showing a grey placeholder
+   * instead of a hotel. */
+  recommendedPhoto?: string | null;
   /** The night this block starts on — which cell of each category to show. */
   day: number;
   nights: number;
-  checkIn: string;
-  checkOut: string;
+  /** The block's own check-in / check-out TIMES ("14:00"), when anyone has set
+   * them. Optional by nature: they come off the hotel row and most quotes
+   * never carry one, which is why this card used to print a bare "—" in both
+   * boxes — the fields were empty, and there was nothing else to show.
+   *
+   * The dates below are what the client actually needs, and they are always
+   * derivable from the trip's start date, so they are what leads now; a time
+   * is extra detail underneath it when it exists. */
+  checkIn?: string | null;
+  checkOut?: string | null;
+  /** Calendar dates of the block: the day it starts, and the morning after its
+   * last night. Never a single night unless the block really is one — see
+   * stayNights in DayCardPreview. */
+  checkInDate: Date | null;
+  checkOutDate: Date | null;
 }) {
   const DOC = useDocTheme();
   // Optional: the document also renders outside the builder (the client's page
@@ -2529,7 +2640,12 @@ function StayColumns({
       >
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check In</p>
-          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>{checkIn || "—"}</p>
+          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>
+            {checkInDate ? formatShortDate(checkInDate) : checkIn || "—"}
+          </p>
+          {checkInDate && checkIn && (
+            <p className="text-[12px]" style={{ color: DOC.inkMuted }}>{formatTime12h(checkIn)}</p>
+          )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className="h-px w-8" style={{ backgroundColor: DOC.rule }} />
@@ -2541,7 +2657,12 @@ function StayColumns({
         </div>
         <div className="min-w-0 text-right">
           <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: DOC.inkMuted }}>Check Out</p>
-          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>{checkOut || "—"}</p>
+          <p className="text-[13.5px] font-semibold" style={{ color: DOC.ink }}>
+            {checkOutDate ? formatShortDate(checkOutDate) : checkOut || "—"}
+          </p>
+          {checkOutDate && checkOut && (
+            <p className="text-[12px]" style={{ color: DOC.inkMuted }}>{formatTime12h(checkOut)}</p>
+          )}
         </div>
       </div>
 
@@ -2552,6 +2673,9 @@ function StayColumns({
         {shown.map((c) => {
           const cell = c.byDay?.[day] ?? { hotel: null };
           const { manualHotelName: hotelName, manualRoomName: roomName } = splitManualHotelName(cell.hotel ?? "");
+          // See recommendedPhoto: the day row is the recommended option's own
+          // record, so borrowing from it can only ever show this same hotel.
+          const photo = cell.photo || (c.isRecommended ? recommendedPhoto : null);
           return (
             <div
               key={c.id}
@@ -2566,9 +2690,9 @@ function StayColumns({
               }}
             >
               <div className="relative">
-                {cell.photo ? (
+                {photo ? (
                   /* eslint-disable-next-line @next/next/no-img-element -- arbitrary catalog URL, not a static app asset */
-                  <img src={cell.photo} alt={hotelName ?? ""} className="w-full aspect-video object-cover" />
+                  <img src={photo} alt={hotelName ?? ""} className="w-full aspect-video object-cover" />
                 ) : (
                   <div className="w-full aspect-video flex items-center justify-center" style={{ backgroundColor: DOC.paper }}>
                     <Hotel size={16} style={{ color: DOC.inkMuted }} />
@@ -2808,11 +2932,22 @@ function DayCardPreview({
   // with no hotel booked (see ExtrasDrawers' MealsView), and that shouldn't
   // conjure a blank Stay card into existence.
   const hasHotel = day.accommodation || day.hotelCheckIn || day.hotelCheckOut;
-  // Check-in lands on this day's own date; check-out is the following
-  // morning — same "shifted" convention the meal algorithm uses, since a
+  // How many nights the stay STARTING here runs. A stay is one booking across
+  // consecutive nights, so the dates below have to describe the booking — not
+  // the single day this card happens to be.
+  //
+  // stayBlock (the multi-standard block) is authoritative when there is one,
+  // because it is built from every option's hotel; otherwise the day rows'
+  // own run. Both fall back to a single night, which is what a hand-typed
+  // stay with no catalog room has always been.
+  const stayNights = stayBlock?.nights ?? Math.max(1, stayRun(allDays, day.day).length);
+  // Check-in lands on this day's own date; check-out is the morning AFTER the
+  // last night — same "shifted" convention the meal algorithm uses, since a
   // day's hotel is the one you sleep in that night and leave the next day.
+  // Adding a flat 1 here is what printed "14 Oct → 15 Oct" over a stay the
+  // builder had assigned to three nights.
   const checkInDate = dayCalendarDate(travelDate, day.day);
-  const checkOutDate = dayCalendarDate(travelDate, day.day + 1);
+  const checkOutDate = dayCalendarDate(travelDate, day.day + stayNights);
   const mealText = mealIncludedText(day.hotelMealPlan);
   // One photo per stay. The room-photo strip under it was removed — three
   // pictures of the same hotel is a gallery, and the itinerary is not one; the
@@ -2975,8 +3110,18 @@ function DayCardPreview({
           page. Instead, only the Hotel/Transport/Activity sub-cards below are
           individually protected, so a tall day can still split page-to-page at
           a clean boundary between them. */}
+      {/* `to-neutral-50`, not the `to-grey-50` this carried before: there is no
+          `grey` scale in the theme (Tailwind's is `gray`), so that class was
+          never generated and the gradient ran white → the `--tw-gradient-to`
+          default, which is TRANSPARENT.
+          On screen that is invisible — transparent over a white card is white.
+          In the exported PDF it was the day header turning grey: html2canvas
+          interpolates gradient stops in straight (non-premultiplied) alpha, so
+          white → rgba(0,0,0,0) ramps through grey instead of staying white.
+          Naming a real, opaque end colour makes the two renderings agree, and
+          is the subtle step down the header was always meant to have. */}
       <div
-        className="flex items-baseline gap-3.5 px-4 pt-3.5 pb-3 relative z-10 after:absolute after:inset-px after:bg-linear-to-b after:from-white after:to-grey-50 after:rounded-t-xl after:-z-10"
+        className="flex items-baseline gap-3.5 px-4 pt-3.5 pb-3 relative z-10 after:absolute after:inset-px after:bg-linear-to-b after:from-white after:to-neutral-50 after:rounded-t-xl after:-z-10"
         style={{ borderBottom: `1px solid ${DOC.rule}` }}
       >
         <span
@@ -3044,6 +3189,9 @@ function DayCardPreview({
                       nights={stayBlock.nights}
                       checkIn={stayBlock.checkIn ?? day.hotelCheckIn}
                       checkOut={stayBlock.checkOut ?? day.hotelCheckOut}
+                      checkInDate={checkInDate}
+                      checkOutDate={checkOutDate}
+                      recommendedPhoto={day.accommodationPhoto || primaryRoomPhoto}
                       packageId={stayEditing?.packageId}
                       searchCity={day.accommodationLocation || ""}
                       travelDate={travelDate}
@@ -3180,7 +3328,7 @@ function DayCardPreview({
 
 
                       {(day.hotelCheckIn || day.hotelCheckOut || checkInDate) && (
-                        <StayTimeline day={day} checkInDate={checkInDate} checkOutDate={checkOutDate} />
+                        <StayTimeline day={day} nights={stayNights} checkInDate={checkInDate} checkOutDate={checkOutDate} />
                       )}
 
                       {/* Room details stay here for a hand-typed stay, which has
@@ -4484,6 +4632,7 @@ export function ItineraryDocument({
                 stops={form.stops}
                 adults={pricedParty.adults}
                 childCount={pricedParty.children}
+                stayOptions={form.stayOptions}
               />
             </div>
 

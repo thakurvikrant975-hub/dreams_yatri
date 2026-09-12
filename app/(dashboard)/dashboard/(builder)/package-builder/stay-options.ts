@@ -177,6 +177,17 @@ export function buildStayRuns(days: StayDay[], optionIds: string[]): StayRun[] {
   const runs: StayRun[] = [];
   let openKey: string | null = null;
   let openDay: number | null = null;
+  // The day everyone goes home carries no night — the guest checks out that
+  // morning. Same rule the stay drawer and the submit check already use (see
+  // `departureDay` in StayOptionsView).
+  //
+  // It has to be stated here too, because the location fallback below would
+  // otherwise swallow it: a departure day belongs to the destination it flies
+  // out of, so it kept the block open on location alone and every run came out
+  // one night too long. On a 4D/3N trip that printed "4N" over the stay, "night
+  // 2 of 4" on the nights after it, and had the column picker writing a hotel
+  // onto a night nobody sleeps.
+  const departureDay = ordered.length > 0 ? ordered[ordered.length - 1].day : null;
 
   for (const day of ordered) {
     // A day with no hotel in any option used to end the run and produce no
@@ -184,8 +195,12 @@ export function buildStayRuns(days: StayDay[], optionIds: string[]): StayRun[] {
     // only way to get a block was to already have what the block was for.
     // A day that belongs to a destination is part of that destination's stay
     // whether or not anyone has chosen where to sleep yet.
+    //
+    // The departure day is the one exception: it only joins a block when an
+    // option genuinely books a hotel on it (a late flight out does happen),
+    // never on its location alone.
     const hasHotel = optionIds.some((id) => day.byOption[id]?.hotel?.trim());
-    if (!hasHotel && !day.location?.trim()) {
+    if (!hasHotel && (day.day === departureDay || !day.location?.trim())) {
       openKey = null;
       openDay = null;
       continue;
