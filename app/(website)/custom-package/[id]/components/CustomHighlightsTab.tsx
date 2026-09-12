@@ -146,6 +146,10 @@ export function CustomHighlightsTab({ form }: { form: PreviewData }) {
           stops={form.stops}
           adults={pricedParty.adults}
           childCount={pricedParty.children}
+          // The client's own copy of the trip compares the standards they were
+          // quoted, so its summary has to name all of them too — the day rows
+          // carry the recommended one alone.
+          stayOptions={form.stayOptions}
         />
       </div>
 

@@ -362,7 +362,20 @@ export function ItineraryMap({
   return null;
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-4" style={{ breakInside: "avoid" }}>
+    // `data-itinerary-map` is the PDF exporter's hook, and it has to be here —
+    // on the wrapper, present from the first render — rather than on anything
+    // Leaflet creates. waitForLeafletMaps (pdfExport.ts) reads it to tell "this
+    // document contains a map that has not drawn its tiles yet, wait for it"
+    // apart from "this document has no map, start capturing now". Leaflet's own
+    // `.leaflet-container` cannot answer that: it does not exist until a
+    // geocode round-trip and a dynamic import have both finished, so its
+    // absence is ambiguous — and waiting out that ambiguity on a document with
+    // no map is a flat 20-second stall on every export.
+    <div
+      data-itinerary-map=""
+      className="rounded-xl border border-neutral-200 bg-white p-4"
+      style={{ breakInside: "avoid" }}
+    >
       {/* <h3 className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-3">Route Map</h3>
 
       {geocoded === null && (

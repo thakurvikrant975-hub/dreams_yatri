@@ -241,17 +241,39 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T)
 
 async function inlineCrossOriginImages(root: HTMLElement): Promise<string[]> {
   const images = Array.from(root.querySelectorAll("img"));
-  const resolved = await mapWithConcurrency(images, 6, async (img) => {
+
+  // One proxy round-trip per distinct URL, not per <img>.
+  //
+  // An itinerary repeats photos by design: the same vehicle picture sits under
+  // every day that books that cab, a stay's photo appears on the night it
+  // starts and again in a summary, and one hotel across a 3-night block is one
+  // URL rendered three times. Keyed per element, each of those copies was
+  // fetched separately — the same bytes pulled through the proxy, and through
+  // the 6-wide concurrency gate, several times over. A single blob URL is
+  // perfectly reusable across any number of <img> elements, so they now share
+  // one.
+  const bySrc = new Map<string, HTMLImageElement[]>();
+  for (const img of images) {
     const src = img.getAttribute("src");
-    if (!src) return null;
+    if (!src) continue;
+    const group = bySrc.get(src);
+    if (group) group.push(img);
+    else bySrc.set(src, [img]);
+  }
+
+  const sources = [...bySrc.keys()];
+  const resolved = await mapWithConcurrency(sources, 6, async (src) => {
     const { url: safeUrl, warning } = await toCanvasSafeUrl(src);
-    return { img, safeUrl, warning };
+    return { src, safeUrl, warning };
   });
+
   const warnings: string[] = [];
   for (const r of resolved) {
-    if (!r) continue;
-    r.img.src = r.safeUrl;
-    if (r.warning) warnings.push(`${r.img.alt || "photo"}: ${r.warning}`);
+    const group = bySrc.get(r.src) ?? [];
+    for (const img of group) img.src = r.safeUrl;
+    // Reported once per URL rather than once per copy of it — the label comes
+    // from the first element using it, and the caller de-dupes by label anyway.
+    if (r.warning) warnings.push(`${group[0]?.alt || "photo"}: ${r.warning}`);
   }
   return warnings;
 }
@@ -399,13 +421,34 @@ async function waitForLeafletMaps(root: HTMLElement, timeoutMs = 20000): Promise
   const deadline = Date.now() + timeoutMs;
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+  // Is there a map in this document AT ALL?
+  //
+  // This used to be answered by polling for `.leaflet-container` until the
+  // deadline — which answers "has a map appeared YET", a question that only
+  // ever terminates early when the answer is yes. A document with no map
+  // never broke out of that loop: it slept 200ms at a time for the entire
+  // 20s budget and then returned "nothing to wait for", having waited for
+  // exactly that. ItineraryMap has been returning null (the map is switched
+  // off — see the note at the top of its render), so EVERY package-builder
+  // PDF download and preview in production has been paying a flat, invisible
+  // 20-second stall before html2canvas was even asked to start.
+  //
+  // ItineraryMap stamps `data-itinerary-map` on its wrapper from its first
+  // render, before Leaflet is imported or a single tile is requested, so this
+  // distinguishes "no map here" (return now) from "a map that has not
+  // initialised yet" (wait for it, below) without guessing from a timeout.
+  if (!root.querySelector("[data-itinerary-map]")) return;
+
   let containers: HTMLElement[] = [];
   while (Date.now() < deadline) {
     containers = Array.from(root.querySelectorAll<HTMLElement>(".leaflet-container"));
     if (containers.length > 0) break;
     await sleep(200);
   }
-  if (containers.length === 0) return; // no map on this document — nothing to wait for
+  // A map that is mounted but never produced a container — geocoding found
+  // none of the places, so it is rendering its "couldn't locate" card. There
+  // are no tiles coming.
+  if (containers.length === 0) return;
 
   // Require the tile count to hold steady across two consecutive checks
   // before treating it as "done" — Leaflet can still be appending more tiles
@@ -870,8 +913,15 @@ async function captureToPdfPagesInner(root: HTMLElement, scale: number): Promise
   // Captured before the main html2canvas pass touches anything else — see
   // captureMapsSeparately for why each map needs its own isolated capture.
   const mapPatches = await captureMapsSeparately(root, scale);
-  const maskPatches = await rasterizeMaskedElements(root);
-  const proxyWarnings = await inlineCrossOriginImages(root);
+  // Both of these are network-bound and touch disjoint parts of the tree —
+  // rasterizeMaskedElements reads mask-image off non-<img> elements, inlining
+  // rewrites <img src> — so there is no reason for one to sit behind the other.
+  const [maskPatches, proxyWarnings] = await Promise.all([
+    rasterizeMaskedElements(root),
+    inlineCrossOriginImages(root),
+  ]);
+  // This one genuinely does follow: it waits on the blob URLs the inlining
+  // above just swapped in.
   const loadWarnings = await waitForImages(root);
   // A proxy failure (recorded pre-swap, by alt label) and a post-swap load
   // failure (recorded independently) can both fire for the same photo —

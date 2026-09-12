@@ -412,6 +412,10 @@ window, in month-sized pieces:
 - **Daily** per campaign (cost, impressions, clicks, Google's conversions and value, and the
   search impression-share / budget-lost / rank-lost ratios), per ad group and per ad.
 - **Hourly** per campaign.
+- Every raw statement is retried on connection loss
+  ([`bulk-upsert.ts`](<../../app/lib/ads/bulk-upsert.ts>)): the app's client retries model
+  operations but not raw SQL, which is all this sync writes, so one dropped connection would
+  otherwise end a nightly run.
 - **Google's answer for the window replaces ours.** Every row a run writes carries its
   `syncedAt`; afterwards, rows in the window left older than that — ones Google no longer
   reports — are deleted. Only after every write succeeded, so a failure part-way loses nothing.
@@ -421,8 +425,16 @@ window, in month-sized pieces:
   in the account's timezone, arithmetic at UTC midnight; `npm run test:ads-dates` pins the edges
   (IST midnight, leap days, a year cut into windows with no gap or repeat).
 
-`npm run ads:sync-stats` re-reads the last 30 days (what the schedule will do); `-- --days N`,
+`npm run ads:sync-stats` re-reads the last 30 days (what the schedule does); `-- --days N`,
 `-- --from … --to …`, or `-- --since-start` for a full backfill.
+
+⚠️ **Resuming an interrupted backfill:** start again from the beginning of the window that was
+running, not from where the row counts appear to end. A window writes campaign-days, then
+ad-group-days, ad-days, hourly — so an interruption leaves the daily rows of that window
+present and its hourly rows missing, which looks complete by date. The progress line is
+printed only when a window finishes, so resume from the day after the **last printed** line.
+(Cost this once: 358 campaign-days in production had no hourly rows until the window was
+re-run. Caught by the hourly-sums-to-daily check, which is why that check exists.)
 
 Field notes (v25): int64 metrics arrive as strings, doubles as numbers; impression share
 reports "<10%" as `0.0999` and ">90%" as `0.9001` — display them as bounds, not figures. Hourly
@@ -459,14 +471,42 @@ code that writes those tables shipped.
 
 ---
 
-## Step 6 — The join layer & metric definitions
+## Step 6 — The join layer & metric definitions  ✅ COMPLETE
 
-A service joining `ads_daily_stats` ↔ `package_queries` (via `adsCampaignId` / `adsAdGroupId`)
-↔ `Booking` (via `sourceQueryId`). Definitions are fixed here, in one place, before any UI is
-written:
+[`app/lib/ads/reporting.ts`](<../../app/lib/ads/reporting.ts>) — `adsPerformance(db, {from, to, level})`
+returns one row per campaign or ad group, and `adsTotals` sums them. Every report and the
+dashboard read from here, so a definition lives once. `npm run ads:report` prints it
+(`-- --level adgroup`, `-- --days N`, `-- --from … --to …`).
 
-| Metric | Definition |
-|---|---|
+**Definitions, chosen against what production actually records (checked 2026-09-12):**
+
+| Term | Means | Why not the obvious thing |
+|---|---|---|
+| lead | a `package_queries` row carrying the campaign / ad group | |
+| quoted | that lead has a custom package marked `SENT` | `verified` is set on **2 leads in 2,575** — it means nothing here |
+| won | the lead's status is `CONVERTED` | only **9 leads became bookings in 180 days**; sales mark the lead, not a booking |
+| value | the latest custom package's `totalPrice` on a won lead | quoted and accepted, **not cash collected** |
+| junk | closed as `UNRESPONSIVE` | the lead that never answered — 153 of 1,257 closes |
+
+**Margin ROAS is not computable and is deliberately absent**: `bookings.marginAmount` is 0 on
+every row and payments are unused. Anything labelled ROAS here would be invented. Revisit if
+margin starts being filled in.
+
+Two rules the numbers depend on: **Google owns cost, we own outcomes** (its conversion count is
+never mixed in), and **each side is aggregated before joining** — the fan-out that read Goa at
+₹30,60,413 instead of ₹23,724. Lead timestamps are converted UTC → Asia/Calcutta before being
+matched to a spend date, or every lead after 18:30 UTC lands on the wrong day.
+
+**Production, 1–12 Sep:** ₹83,293 spend, 4,704 clicks, 442 leads (₹188 each, 9.4% of clicks),
+121 quoted (₹688 each), 2 won, ₹46,003 quoted deal value. Sikkim costs ₹289/lead against
+Gujarat's ₹145; Kashmir bought 220 clicks and no leads. At ad-group level (from 2026-09-11):
+Chardham ₹38/lead at 33% click→lead, Nainital ₹374 at 3.7%.
+
+⚠️ **Win metrics need time to mature.** A lead is marked `CONVERTED` days after it arrives, so
+recent windows always understate wins — 0.5% over 1–12 Sep is mostly immaturity, not truth.
+Step 7 should show wins by lead cohort, not as a headline rate on a short window.
+
+---|---|
 | CPL | ad cost ÷ leads |
 | Cost per **verified** lead | ad cost ÷ leads with `verified = true` |
 | Junk rate | rejected leads ÷ total leads, per ad group |
@@ -492,10 +532,28 @@ envelope, the `QueryStatus` funnel, and junk rate by ad group.
 
 ---
 
-## Step 8 — Backfill  *(optional, time-boxed)*
+## Step 8 — Backfill  ✅ DONE for campaigns (2026-09-12)
 
-`click_view` resolution of existing `gclid`s — one query per day, last 90 days only. Skip it if
-Step 7 is more urgent; it buys history, not capability.
+Not `click_view` after all — the landing URL each lead already stores in `pageUrl` carries
+Google's auto-tagged `gclid` and `gad_campaignid`, so the campaign behind a past lead was
+already in our database, unparsed. No API, no 90-day limit.
+
+`npm run ads:backfill-leads` (dry run; `-- --apply` writes) reads those URLs with
+**readAdAttribution — the same parser live intake uses** — so a backfilled lead is tagged as a
+new one would be. It fills only empty columns (`COALESCE`), and never invents a click time:
+those landing hits weren't witnessed.
+
+**Applied to production:** 405 leads, 0 unparseable, across 9 campaigns — 11 days of
+campaign-level history (1–12 Sep) instead of one. Ad group and keyword can't be recovered:
+auto-tagging carries no equivalent, so that history starts when the suffix went live on
+2026-09-11. `click_view` remains the only route to ad-group detail for older clicks, within
+its 90 days, if it ever matters enough.
+
+⚠️ **Aggregate each side before joining.** A first pass at cost-per-lead joined per-day spend
+straight to leads and counted each campaign's spend once per lead — Goa read ₹30,60,413
+instead of ₹23,724 (129×). Spend per campaign and leads per campaign are separate
+aggregations that then join one-to-one; Step 6 exists so that lives in one tested place
+instead of each report's SQL.
 
 ---
 

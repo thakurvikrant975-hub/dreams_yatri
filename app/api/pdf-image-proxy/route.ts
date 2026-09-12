@@ -143,6 +143,23 @@ export async function GET(req: NextRequest) {
   const buf = await upstream.arrayBuffer();
   console.log(`[pdf-image-proxy] ok: ${url} (${buf.byteLength} bytes, ${Date.now() - start}ms)`);
   return new NextResponse(buf, {
-    headers: { "Content-Type": contentType, "Cache-Control": "private, max-age=300" },
+    headers: {
+      "Content-Type": contentType,
+      // Cacheable by the CDN and by the browser, not just `private, max-age=300`.
+      //
+      // `private` forbids shared caches outright, so every export re-pulled
+      // every photo from its origin through this function — including the very
+      // common case of an exec hitting Preview and then Download on the same
+      // package, which runs the whole pipeline twice back to back, and the case
+      // of several execs exporting packages that share a hotel's photos. The
+      // response is a pure function of the `url` parameter the cache is already
+      // keyed by, and these are public catalog/R2 photos that are served
+      // unauthenticated on the client-facing package page anyway.
+      //
+      // Bounded rather than immutable: a photo CAN be replaced at the same URL,
+      // so the edge refreshes daily and serves stale while it does, which keeps
+      // a slow upstream off the critical path instead of putting it back on.
+      "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    },
   });
 }
