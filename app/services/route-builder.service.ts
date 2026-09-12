@@ -279,8 +279,10 @@ export async function deleteDuration(durationId: number) {
     throw new Error("Cannot delete a duration that still has routes — delete its routes first");
   }
 
-  // No cascade on duration_id FK for itineraries; clear any orphaned rows before deleting.
+  // No cascade on duration_id FK for itineraries or pricing; clear orphaned rows first.
+  // (package_pricing_season cascades from package_pricing, so deleting pricing is enough there.)
   await db.package_itineraries.deleteMany({ where: { duration_id: durationId } });
+  await db.package_pricing.deleteMany({ where: { duration_id: durationId } });
   await db.package_durations.delete({ where: { id: durationId } });
 }
 
