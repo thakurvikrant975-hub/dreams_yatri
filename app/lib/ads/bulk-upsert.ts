@@ -21,6 +21,31 @@ export type RawQuerier = { $queryRaw<T = unknown>(query: Prisma.Sql): PromiseLik
 
 const q = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
+/**
+ * Runs a statement again when the connection dies under it.
+ *
+ * The app's client retries model operations (app/lib/db.ts) but not raw SQL,
+ * which is all this sync writes — so without this, one dropped connection ends
+ * a nightly run. Every statement here is safe to repeat: the upserts are
+ * idempotent, the reads are reads, and the stale delete is bounded by the same
+ * window. Only connection-level failures are retried; a bad statement still
+ * fails at once.
+ */
+export async function retryingOnConnectionLoss<T>(run: () => PromiseLike<T>, attempts = 4): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await run();
+    } catch (e) {
+      const cause = e instanceof Error && e.cause instanceof Error ? e.cause.message : "";
+      const message = `${e instanceof Error ? e.message : String(e)} ${cause}`;
+      const transient = /connection terminated|connection timeout|ECONNRESET|socket hang up|connection closed|server closed the connection/i.test(message);
+      if (!transient || attempt >= attempts) throw e;
+      console.warn(`[ads-sync] ${message.trim()} — retry ${attempt} of ${attempts - 1}`);
+      await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+    }
+  }
+}
+
 /** Postgres caps a statement at 65,535 parameters; stay well under it. */
 const MAX_PARAMS = 30_000;
 
@@ -55,9 +80,9 @@ export async function bulkUpsert(
   for (let i = 0; i < rows.length; i += perChunk) {
     const chunk = rows.slice(i, i + perChunk);
     const values = Prisma.join(chunk.map((r) => Prisma.sql`(${Prisma.join(cols.map((c) => r[c]))})`));
-    written += await db.$executeRaw(Prisma.sql`INSERT INTO ${Prisma.raw(q(table))} (${Prisma.raw(cols.map(q).join(", "))})
+    written += await retryingOnConnectionLoss(() => db.$executeRaw(Prisma.sql`INSERT INTO ${Prisma.raw(q(table))} (${Prisma.raw(cols.map(q).join(", "))})
       VALUES ${values}
-      ON CONFLICT (${Prisma.raw(key.map(q).join(", "))}) ${Prisma.raw(onConflict)}`);
+      ON CONFLICT (${Prisma.raw(key.map(q).join(", "))}) ${Prisma.raw(onConflict)}`));
   }
   return written;
 }

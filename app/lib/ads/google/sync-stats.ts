@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/app/generated/prisma/client";
 import { gaql } from "./client";
-import { bulkUpsert, type RawExecutor, type RawQuerier } from "../bulk-upsert";
+import { bulkUpsert, retryingOnConnectionLoss, type RawExecutor, type RawQuerier } from "../bulk-upsert";
 import { startSyncRun, finishSyncRun, failSyncRun, type SyncRunDb } from "../sync-run";
 import { assertDate, addDays, todayIn, windows } from "../dates";
 
@@ -91,8 +91,8 @@ export async function syncGoogleAdsStats(
   };
 
   try {
-    const accounts = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
-      SELECT id FROM google_ads_accounts WHERE "isManager" = false AND status = 'ENABLED'`);
+    const accounts = await retryingOnConnectionLoss(() => db.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM google_ads_accounts WHERE "isManager" = false AND status = 'ENABLED'`));
     if (accounts.length === 0) throw new Error("no ad account in google_ads_accounts — run the structure sync first");
 
     const campaigns = new Set((await db.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT id FROM google_ads_campaigns`)).map((x) => x.id));
@@ -165,9 +165,9 @@ export async function syncGoogleAdsStats(
     // Only now that every write has landed: what's in the window and wasn't
     // just written is what Google no longer reports.
     for (const table of ["google_ads_campaign_daily", "google_ads_ad_group_daily", "google_ads_ad_daily", "google_ads_campaign_hourly"]) {
-      r.removedStale += await db.$executeRaw(Prisma.sql`
+      r.removedStale += await retryingOnConnectionLoss(() => db.$executeRaw(Prisma.sql`
         DELETE FROM ${Prisma.raw(`"${table}"`)}
-        WHERE "date" BETWEEN ${from}::date AND ${to}::date AND "syncedAt" < ${syncedAt}`);
+        WHERE "date" BETWEEN ${from}::date AND ${to}::date AND "syncedAt" < ${syncedAt}`));
     }
 
     await finishSyncRun(db, runId, r.campaignDays + r.adGroupDays + r.adDays + r.campaignHours, {

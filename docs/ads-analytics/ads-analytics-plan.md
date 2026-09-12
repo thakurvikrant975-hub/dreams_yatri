@@ -412,6 +412,10 @@ window, in month-sized pieces:
 - **Daily** per campaign (cost, impressions, clicks, Google's conversions and value, and the
   search impression-share / budget-lost / rank-lost ratios), per ad group and per ad.
 - **Hourly** per campaign.
+- Every raw statement is retried on connection loss
+  ([`bulk-upsert.ts`](<../../app/lib/ads/bulk-upsert.ts>)): the app's client retries model
+  operations but not raw SQL, which is all this sync writes, so one dropped connection would
+  otherwise end a nightly run.
 - **Google's answer for the window replaces ours.** Every row a run writes carries its
   `syncedAt`; afterwards, rows in the window left older than that — ones Google no longer
   reports — are deleted. Only after every write succeeded, so a failure part-way loses nothing.
@@ -421,8 +425,16 @@ window, in month-sized pieces:
   in the account's timezone, arithmetic at UTC midnight; `npm run test:ads-dates` pins the edges
   (IST midnight, leap days, a year cut into windows with no gap or repeat).
 
-`npm run ads:sync-stats` re-reads the last 30 days (what the schedule will do); `-- --days N`,
+`npm run ads:sync-stats` re-reads the last 30 days (what the schedule does); `-- --days N`,
 `-- --from … --to …`, or `-- --since-start` for a full backfill.
+
+⚠️ **Resuming an interrupted backfill:** start again from the beginning of the window that was
+running, not from where the row counts appear to end. A window writes campaign-days, then
+ad-group-days, ad-days, hourly — so an interruption leaves the daily rows of that window
+present and its hourly rows missing, which looks complete by date. The progress line is
+printed only when a window finishes, so resume from the day after the **last printed** line.
+(Cost this once: 358 campaign-days in production had no hourly rows until the window was
+re-run. Caught by the hourly-sums-to-daily check, which is why that check exists.)
 
 Field notes (v25): int64 metrics arrive as strings, doubles as numbers; impression share
 reports "<10%" as `0.0999` and ">90%" as `0.9001` — display them as bounds, not figures. Hourly
