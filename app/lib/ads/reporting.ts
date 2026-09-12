@@ -229,3 +229,10 @@ export async function offAdsLeads(
     whatsappFromGoogle: row?.whatsapp ?? 0,
   };
 }
+
+/** The first day we hold spend for — the floor for an "all time" range. */
+export async function adsDataStart(db: RawQuerier): Promise<string | null> {
+  const [row] = await db.$queryRaw<{ d: string | null }[]>(Prisma.sql`
+    SELECT MIN("date")::text AS d FROM google_ads_campaign_daily`);
+  return row?.d ?? null;
+}

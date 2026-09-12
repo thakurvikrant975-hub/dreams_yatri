@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/app/lib/db";
-import { adsPerformance, adsTotals, lastAdsSync, offAdsLeads, type AdsPerformanceRow } from "@/app/lib/ads/reporting";
+import { adsPerformance, adsTotals, lastAdsSync, offAdsLeads, adsDataStart, type AdsPerformanceRow } from "@/app/lib/ads/reporting";
 import { addDays, todayIn } from "@/app/lib/ads/dates";
 
 /**
@@ -16,6 +16,10 @@ export type AdsDashboardData = {
   from: string;
   to: string;
   days: number;
+  /** Today on the ad account's clock — what the range presets mean by "today". */
+  today: string;
+  /** First day we hold spend for, so "All time" knows where to start. */
+  earliest: string | null;
   campaigns: AdsPerformanceRow[];
   adGroups: AdsPerformanceRow[];
   totals: ReturnType<typeof adsTotals>;
@@ -28,24 +32,30 @@ export type AdsDashboardData = {
   lastSync: { kind: string; status: string; finishedAt: Date | null } | null;
 };
 
-/** Last 30 days, ending today on the ad account's clock. */
+/**
+ * Last 30 days ending **yesterday**, on the ad account's clock — the same
+ * window Google Ads means by "Last 30 days". Today is deliberately excluded:
+ * it is still accumulating, and a partial day drags every average down. The
+ * range picker has Today and "N days up to today" for the live view.
+ */
 export function defaultAdsRange(): { from: string; to: string } {
-  const to = todayIn(ACCOUNT_TZ);
-  return { from: addDays(to, -29), to };
+  const today = todayIn(ACCOUNT_TZ);
+  return { from: addDays(today, -30), to: addDays(today, -1) };
 }
 
 export async function getAdsDashboard(from: string, to: string): Promise<AdsDashboardData> {
-  const [campaigns, adGroups, lastSync, offAds] = await Promise.all([
+  const [campaigns, adGroups, lastSync, offAds, earliest] = await Promise.all([
     adsPerformance(db, { from, to, level: "campaign" }),
     adsPerformance(db, { from, to, level: "adGroup" }),
     lastAdsSync(db),
     offAdsLeads(db, { from, to }),
+    adsDataStart(db),
   ]);
   const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1;
   const totals = adsTotals(campaigns);
   const withCalls = totals.leads + offAds.phone;
   return {
-    from, to, days, campaigns, adGroups, totals, offAds, lastSync,
+    from, to, days, today: todayIn(ACCOUNT_TZ), earliest, campaigns, adGroups, totals, offAds, lastSync,
     costPerLeadWithCalls: withCalls > 0 ? Math.round(totals.spend / withCalls) : null,
   };
 }

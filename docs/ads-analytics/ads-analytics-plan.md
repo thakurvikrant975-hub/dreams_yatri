@@ -544,8 +544,15 @@ and listed in `nav-hrefs.ts` so page access is grantable per role like every oth
 - One row per campaign — spend, daily budget (with "x% lost" when budget cost it more than a
   fifth of its impressions), clicks, leads, click→lead, cost per lead, quoted, won, no-answer
   rate, deal value — expanding to its **ad groups**.
-- Range presets (7/30/90 days) and two date inputs; the window lives in the URL, so a view can
-  be shared. Days are the ad account's calendar days (Asia/Calcutta).
+- A shared range filter — [`components/ui/date-range-filter.tsx`](<../../app/(dashboard)/dashboard/(main)/components/ui/date-range-filter.tsx>),
+  reusable by any dashboard page: named presets down the left, an editable range and a
+  two-month calendar on the right, nothing applied until Apply. The window lives in the URL, so
+  a view can be shared. Days are the ad account's calendar days (Asia/Calcutta), passed in as
+  `today` so "Last 7 days" means what Google means by it.
+- **Rolling presets end yesterday**, as they do in Google Ads and GA: today is still
+  accumulating, and including a partial day drags every average down — the exact thing that
+  made a dashboard figure look like it disagreed with a Google CSV on 2026-09-12. "Today" and
+  the "N days up to today" boxes are there when the live figure is what you want.
 - A freshness line — "Google data synced 3 h ago", amber past ~26 h or after a failed run.
   A dashboard that quietly shows stale spend is worse than one that admits it.
 
