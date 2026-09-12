@@ -49,6 +49,7 @@ export const ALL_HREFS = [
   // Marketing
   "/dashboard/queries",
   "/dashboard/lead-report",
+  "/dashboard/ads-performance",
   "/dashboard/landing-pages",
   "/dashboard/email-marketing",
   "/dashboard/follow-ups",

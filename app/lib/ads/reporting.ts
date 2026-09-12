@@ -45,7 +45,16 @@ export type AdsPerformanceRow = {
   name: string;
   /** For ad groups: the campaign they belong to. */
   parentName: string | null;
+  parentId: string | null;
   status: string;
+  /** Campaign level only: the budget's current daily amount, in rupees. Today's
+   * amount, not what it was during the window — budget history starts when the
+   * sync first saw each budget. */
+  dailyBudget: number | null;
+  /** Campaign level only: the share of impressions lost purely because the
+   * budget ran out, averaged over the days it was reported. The case for
+   * raising a budget — or for not bothering. */
+  budgetLostShare: number | null;
   spend: number;
   clicks: number;
   impressions: number;
@@ -98,7 +107,8 @@ export async function adsPerformance(
   const rows = await db.$queryRaw<Raw[]>(Prisma.sql`
     WITH spend AS (
       SELECT ${spendColumn} AS id, SUM("costMicros")::numeric / 1e6 AS spend,
-             SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions
+             SUM(clicks)::int AS clicks, SUM(impressions)::int AS impressions,
+             ${Prisma.raw(byAdGroup ? "NULL::numeric" : `AVG("searchBudgetLostImpressionShare") FILTER (WHERE impressions > 0)`)} AS "budgetLostShare"
       FROM ${spendTable}
       WHERE "date" BETWEEN ${from}::date AND ${to}::date
       GROUP BY 1
@@ -123,21 +133,30 @@ export async function adsPerformance(
     SELECT COALESCE(s.id, l.id) AS id,
            COALESCE(e.name, '(not synced yet)') AS name,
            parent.name AS "parentName",
+           ${Prisma.raw(byAdGroup ? `e."campaignId"` : "NULL::text")} AS "parentId",
            COALESCE(e.status, 'UNKNOWN') AS status,
+           ${Prisma.raw(byAdGroup ? "NULL::numeric" : `(b."amountMicros"::numeric / 1e6)`)} AS "dailyBudget",
+           s."budgetLostShare",
            COALESCE(s.spend, 0) AS spend, COALESCE(s.clicks, 0) AS clicks, COALESCE(s.impressions, 0) AS impressions,
            COALESCE(l.leads, 0) AS leads, COALESCE(l.quoted, 0) AS quoted, COALESCE(l.won, 0) AS won,
            COALESCE(l.junk, 0) AS junk, COALESCE(l."dealValue", 0) AS "dealValue"
     FROM spend s
     FULL OUTER JOIN leads l ON l.id = s.id
     LEFT JOIN ${entity} ON e.id = COALESCE(s.id, l.id)
+    ${Prisma.raw(byAdGroup ? "" : `LEFT JOIN google_ads_budgets b ON b.id = e."budgetId"`)}
     ORDER BY COALESCE(s.spend, 0) DESC, COALESCE(l.leads, 0) DESC`);
 
   return rows.map((r) => {
     const spend = num(r.spend), leads = num(r.leads), quoted = num(r.quoted), won = num(r.won);
     const junk = num(r.junk), clicks = num(r.clicks), dealValue = num(r.dealValue);
     return {
-      id: String(r.id), name: String(r.name), parentName: r.parentName === null ? null : String(r.parentName),
-      status: String(r.status), spend, clicks, impressions: num(r.impressions),
+      id: String(r.id), name: String(r.name),
+      parentName: r.parentName === null ? null : String(r.parentName),
+      parentId: r.parentId === null ? null : String(r.parentId),
+      status: String(r.status),
+      dailyBudget: r.dailyBudget === null ? null : Number(r.dailyBudget),
+      budgetLostShare: r.budgetLostShare === null ? null : Number(r.budgetLostShare),
+      spend, clicks, impressions: num(r.impressions),
       leads, quoted, won, junk, dealValue,
       costPerLead: per(spend, leads), costPerQuoted: per(spend, quoted), costPerWin: per(spend, won),
       winRate: ratio(won, leads), junkRate: ratio(junk, leads), clickToLead: ratio(leads, clicks),
@@ -158,4 +177,15 @@ export function adsTotals(rows: AdsPerformanceRow[]) {
     winRate: ratio(won, leads), junkRate: ratio(junk, leads), clickToLead: ratio(leads, clicks),
     valuePerRupee: spend > 0 ? dealValue / spend : null,
   };
+}
+
+/**
+ * When the sync last ran, and whether it worked. A dashboard showing yesterday's
+ * spend as today's is worse than one that says it is stale.
+ */
+export async function lastAdsSync(db: RawQuerier): Promise<{ kind: string; status: string; finishedAt: Date | null } | null> {
+  const [row] = await db.$queryRaw<{ kind: string; status: string; finishedAt: Date | null }[]>(Prisma.sql`
+    SELECT kind::text, status::text, "finishedAt" FROM ads_sync_runs
+    WHERE platform = 'GOOGLE' ORDER BY "startedAt" DESC LIMIT 1`);
+  return row ?? null;
 }

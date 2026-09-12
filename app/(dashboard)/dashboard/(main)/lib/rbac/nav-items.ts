@@ -6,8 +6,7 @@ import {
   X, Map, CirclePile, MapPinned, TicketCheck, ClipboardList, ClipboardCheck,
   ShieldCheck, NotebookPen, Eye, Users, CalendarClock, UserPlus,
   PlaneLanding, PlaneTakeoff, FileSpreadsheet, UsersRound, Library, Sparkles, Target,
-  RotateCcw,
-} from "lucide-react";
+  RotateCcw, Megaphone } from "lucide-react";
 import {
   GlobeHemisphereEastIcon, MapPinIcon, BuildingIcon, TagIcon,
   ParachuteIcon, FileTextIcon, PackageIcon, SteeringWheelIcon,
@@ -82,6 +81,7 @@ export const NAV_GROUPS = [
     items: [
       { title: "Queries", href: "/dashboard/queries", icon: MessageCircleQuestion },
       { title: "Lead Report", href: "/dashboard/lead-report", icon: FileSpreadsheet },
+      { title: "Ads Performance", href: "/dashboard/ads-performance", icon: Megaphone },
       { title: "Landing pages", href: "/dashboard/landing-pages", icon: PlaneLanding },
       { title: "Email Marketing", href: "/dashboard/email-marketing", icon: Mails },
       { title: "References", href: "/dashboard/references", icon: Forward },
