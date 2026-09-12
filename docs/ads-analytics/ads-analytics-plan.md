@@ -437,12 +437,25 @@ every campaign-day, and ad groups to their Search campaign on all 4,119 campaign
 
 ---
 
-## Step 5 — Cron
+## Step 5 — Cron  ✅ COMPLETE
 
-`app/api/cron/sync-google-ads/route.ts`, guarded by `isAuthorizedCron` like every other job in
-[`app/api/cron/`](<../../app/api/cron/>), registered in [`vercel.json`](../../vercel.json).
-Runs ~02:00 IST so the previous IST day is closed. Writes an `ads_sync_run` row every time —
-started, finished, rows touched, error.
+[`app/api/cron/sync-google-ads/route.ts`](<../../app/api/cron/sync-google-ads/route.ts>),
+guarded by `isAuthorizedCron` like every other job here, registered in
+[`vercel.json`](../../vercel.json) at **20:30 UTC = 02:00 IST** — after the ad account's day
+closes in Asia/Calcutta. Structure first, then the last 30 days of stats; `maxDuration = 300`
+because a backfill window is minutes where a nightly run is seconds. The route only supplies
+the app's database client and the schedule: the work is the same functions the scripts call.
+
+Query parameters, for a backfill or a re-read (the schedule passes none):
+`?from=&to=` an explicit window, `?days=N` instead of 30, `?structure=0` for stats only.
+
+Production needs exactly two settings — `GOOGLE_ADS_LOGIN_CUSTOMER_ID` and
+`GOOGLE_ADS_SERVICE_ACCOUNT`. **Not** `GOOGLE_ADS_DEVELOPER_TOKEN`: since 2026-09-09 Google
+ignores that header, proven here by running a live query with it blanked. What grants access
+is Explorer on the Cloud project plus the service account being a read-only user on the MCC.
+
+Migration `20260911130000_google_ads_mirror` applied to **production** 2026-09-12, before the
+code that writes those tables shipped.
 
 ---
 
