@@ -648,6 +648,7 @@ export default function PackageBuilderDetailPage() {
     travelBenefits: DEFAULT_TRAVEL_BENEFITS,
     customPolicySections: [],
     extraPolicyItems: EMPTY_EXTRA_POLICY_ITEMS,
+    restrictTransferPointsToEnds: false,
     stops: [],
     itineraries: [emptyDay(1), emptyDay(2), emptyDay(3)],
     tickets: [],
@@ -858,6 +859,7 @@ export default function PackageBuilderDetailPage() {
           removedInclusions: cp.removedInclusions ?? [],
           removedExclusions: cp.removedExclusions ?? [],
           termsNotes: cp.termsNotes ?? f.termsNotes,
+          restrictTransferPointsToEnds: cp.restrictTransferPointsToEnds ?? false,
           stops: cp.stops,
           // Renumbered 1..N by array position (already the correct order —
           // the query sorts by day asc) rather than trusting the stored

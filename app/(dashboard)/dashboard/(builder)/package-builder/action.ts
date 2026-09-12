@@ -1058,6 +1058,10 @@ export interface QueryDetail {
     amendmentPolicy: string[];
     travelBenefits:  string[];
     extraPolicyItems: ExtraPolicyItems;
+    /** Off by default. When on, only Day 1's transfer pickup and the last
+     * day's transfer drop are collected in the builder — see RouteBlock in
+     * DayDrawers.tsx. */
+    restrictTransferPointsToEnds: boolean;
     /** Frozen hotel/cab/ticket/margin/GST breakdown, written once when the
      * package is sent — see PricingSnapshot in sendPackageToClient. */
     pricingSnapshot: unknown;
@@ -1316,6 +1320,10 @@ export interface PackageInput {
   amendmentPolicy: string[];
   travelBenefits:  string[];
   extraPolicyItems: ExtraPolicyItems;
+  /** Off by default. When on, only Day 1's transfer pickup and the last
+   * day's transfer drop are collected in the builder — see RouteBlock in
+   * DayDrawers.tsx. */
+  restrictTransferPointsToEnds: boolean;
   status:          "DRAFT" | "READY";
   stops:           StopInput[];
   itineraries:     DayItinerary[];
@@ -2153,6 +2161,7 @@ export async function getPackageDetail(packageId: string): Promise<QueryDetail |
       amendmentPolicy: true,
       travelBenefits:  true,
       extraPolicyItems: true,
+      restrictTransferPointsToEnds: true,
       pricingSnapshot: true,
       // Only the names, and only so a builder that cannot edit them can say
       // so — v1 has no stay-option UI and writes the day row, which carries
@@ -2413,7 +2422,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
       infantMaxAge, childMaxAge,
       pricePerPerson, totalPrice, marginPercentage, gstPercentage, currency,
       discountType, discountValue, discountNote,
-      termsNotes, extraPolicyItems,
+      termsNotes, extraPolicyItems, restrictTransferPointsToEnds,
       stops, itineraries, tickets, addOns,
     } = input;
     // input.status is deliberately never read — see nextStatus below, which
@@ -2663,6 +2672,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             travelBenefits:  effectiveTravelBenefits,
             customPolicySections: effectiveCustomPolicySections,
             extraPolicyItems: effectiveExtraPolicyItems,
+            restrictTransferPointsToEnds,
             flightsIncluded,
             flightNotes:     flightNotes || null,
             flightFrom:      flightFrom || null,
@@ -2720,6 +2730,7 @@ export async function saveCustomPackage(input: PackageInput): Promise<{
             travelBenefits:  effectiveTravelBenefits,
             customPolicySections: effectiveCustomPolicySections,
             extraPolicyItems: effectiveExtraPolicyItems,
+            restrictTransferPointsToEnds,
             flightsIncluded,
             flightNotes:     flightNotes || null,
             flightFrom:      flightFrom || null,

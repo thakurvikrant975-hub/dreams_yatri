@@ -3350,6 +3350,16 @@ model custom_packages {
   trainNotes              String?
   trainFrom               String?
   trainTo                 String?
+  /**
+   * Off by default (existing packages, and every new one, keep asking for a
+   * pickup/drop point on every day, unchanged). When on, only day 1's
+   * pickup point and the last day's drop point are collected on the
+   * itinerary's transfer section — the days in between skip pickup, drop
+   * AND distance entirely, since for a multi-day cab there's nothing to
+   * enter there: the vehicle just carries on from wherever the previous
+   * day's stay left it.
+   */
+  restrictTransferPointsToEnds Boolean                  @default(false)
   createdAt               DateTime                      @default(now())
   updatedAt               DateTime                      @updatedAt
   itineraries             custom_itineraries[]

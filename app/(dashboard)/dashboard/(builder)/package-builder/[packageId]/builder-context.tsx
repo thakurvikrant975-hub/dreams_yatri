@@ -102,6 +102,12 @@ export interface PackageForm {
    * (including a Sales Executive, who can't touch the standard lists
    * themselves) can add/remove these. See ExtraPolicyItems. */
   extraPolicyItems: ExtraPolicyItems;
+  /** Off by default. When on, only Day 1's transfer pickup and the last
+   * day's transfer drop are collected — every day in between skips pickup,
+   * drop AND distance in RouteBlock (DayDrawers.tsx), since for a multi-day
+   * cab there's nothing to enter there: it just carries on from wherever the
+   * previous day's stay left it. */
+  restrictTransferPointsToEnds: boolean;
   stops: StopInput[];
   itineraries: DayItinerary[];
   /** Each row is one flight or train leg (onward, return, connecting…) —

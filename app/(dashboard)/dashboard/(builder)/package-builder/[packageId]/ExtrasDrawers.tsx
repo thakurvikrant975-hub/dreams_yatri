@@ -18,6 +18,7 @@ import { Plus, Trash2, Gift, Utensils, AlertTriangle } from "./builder-icons";
 import { cn } from "@/app/lib/utils";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
+import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import type { TicketInput, AddonInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 import { useBuilder } from "./builder-context";
 import { MEAL_LABELS } from "@/app/(dashboard)/dashboard/(builder)/package-builder/meals";
@@ -591,6 +592,24 @@ export function StopsView() {
           city on every day.
         </p>
       </div>
+
+      <label className="flex items-start gap-2.5 rounded-lg border border-dashboard-base-300 p-2.5">
+        <Switch
+          size="sm"
+          className="mt-0.5"
+          checked={form.restrictTransferPointsToEnds}
+          onCheckedChange={(checked) => setForm((f) => ({ ...f, restrictTransferPointsToEnds: checked }))}
+        />
+        <span className="flex-1">
+          <span className="block text-[11.5px] font-medium text-dashboard-base-content/90">
+            Only Day 1 &amp; the last day need a pickup/drop point
+          </span>
+          <span className="block text-[10.5px] text-dashboard-base-content/60 mt-0.5">
+            Off by default. Turn on to skip pickup, drop and distance on every day in between —
+            the cab just carries on from the previous stay.
+          </span>
+        </span>
+      </label>
     </div>
   );
 }

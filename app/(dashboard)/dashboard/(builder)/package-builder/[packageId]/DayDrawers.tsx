@@ -28,7 +28,7 @@ import {
 import type { CabSelection } from "@/app/(dashboard)/dashboard/(builder)/package-builder/room-cab-selections";
 import { deriveDayLocations } from "@/app/lib/route-builder-utils";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
-import { TRANSFER_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { TRANSFER_TYPES, DESTINATION_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
 import { geocodeCity } from "./geocode-city";
 import { useBuilder } from "./builder-context";
 import { ApplyToDays } from "./ApplyToDays";
@@ -75,6 +75,17 @@ export function TransferView({ day }: { day: number }) {
   const noDestinations = form.stops.length === 0;
   const derivedCity = deriveDayLocations(form.stops, form.itineraries.length)[day - 1] ?? "";
 
+  // Lets an exec search cabs against a city other than the day's auto-derived
+  // stop — e.g. a nearby town with better rates, or the day's stop hasn't
+  // been set yet. Live-searched via LocationSearchSelect, same as Pickup/Drop
+  // below; null means "just use the derived stop", the previous behaviour.
+  const [destinationOverride, setDestinationOverride] = useState<
+    { name: string; lat: number | null; lng: number | null } | null
+  >(null);
+  const searchCity = destinationOverride?.name || derivedCity;
+  const overrideCoords = destinationOverride?.lat != null && destinationOverride?.lng != null
+    ? { lat: destinationOverride.lat, lng: destinationOverride.lng } : null;
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AnyVehicleHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -93,16 +104,21 @@ export function TransferView({ day }: { day: number }) {
     ? { lat: itin.transportPickupLat, lng: itin.transportPickupLng } : null;
   const [geocoded, setGeocoded] = useState<{ lat: number; lng: number } | null>(null);
   useEffect(() => {
-    if (coordsFromPickup || !derivedCity) { setGeocoded(null); return; }
+    // A picked destination override already carries its own coordinates, so
+    // there's nothing to geocode; same for a real pickup point.
+    if (overrideCoords || coordsFromPickup || !searchCity) { setGeocoded(null); return; }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const c = await geocodeCity(derivedCity);
+      const c = await geocodeCity(searchCity);
       if (!cancelled) setGeocoded(c);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [derivedCity, coordsFromPickup?.lat, coordsFromPickup?.lng]);
-  const coords = coordsFromPickup ?? geocoded;
+  }, [searchCity, coordsFromPickup?.lat, coordsFromPickup?.lng, overrideCoords?.lat, overrideCoords?.lng]);
+  // An explicit destination search wins over a real pickup point, which wins
+  // over a geocoded guess of the day's auto-derived stop — most deliberate
+  // choice first.
+  const coords = overrideCoords ?? coordsFromPickup ?? geocoded;
 
   // Priced cab rates near the day's destination first, sorted/filtered/
   // paginated server-side; the unscoped fleet catalog only as a last resort
@@ -117,7 +133,7 @@ export function TransferView({ day }: { day: number }) {
     const timer = setTimeout(async () => {
       try {
         const { rows, total: t } = await searchCabsForBuilder(
-          derivedCity, query, coords, 1, vehicleTypeFilter, minSeats, sortBy,
+          searchCity, query, coords, 1, vehicleTypeFilter, minSeats, sortBy,
         );
         if (token !== reqRef.current) return;
 
@@ -159,7 +175,7 @@ export function TransferView({ day }: { day: number }) {
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noDestinations, derivedCity, query, coords?.lat, coords?.lng, vehicleTypeFilter, minSeats, sortBy]);
+  }, [noDestinations, searchCity, query, coords?.lat, coords?.lng, vehicleTypeFilter, minSeats, sortBy]);
 
   // Counts the priced rows only. `results` may also carry unpriced fleet
   // matches (see the merge above), and including those made a short priced
@@ -173,7 +189,7 @@ export function TransferView({ day }: { day: number }) {
     const nextPage = page + 1;
     try {
       const { rows, total: t } = await searchCabsForBuilder(
-        derivedCity, query, coords, nextPage, vehicleTypeFilter, minSeats, sortBy,
+        searchCity, query, coords, nextPage, vehicleTypeFilter, minSeats, sortBy,
       );
       // Spliced in after the priced rows rather than appended, so the next
       // page does not land underneath the unpriced fleet matches.
@@ -383,12 +399,30 @@ export function TransferView({ day }: { day: number }) {
         </div>
       ) : (
       <div className="space-y-2">
+        <div className="space-y-1">
+          <span className="text-[11px] text-dashboard-base-content/75">Search cabs near</span>
+          <LocationSearchSelect
+            value={destinationOverride
+              ? {
+                  id: "cab-destination-override", name: destinationOverride.name, type: "AREA",
+                  breadcrumb: destinationOverride.name, slug: "",
+                  latitude: destinationOverride.lat, longitude: destinationOverride.lng,
+                }
+              : null}
+            onChange={(loc: LocationValue | null) => setDestinationOverride(loc
+              ? { name: loc.name, lat: loc.latitude ?? null, lng: loc.longitude ?? null }
+              : null)}
+            types={DESTINATION_TYPES}
+            placeholder={derivedCity ? `Auto: ${derivedCity} — search to override…` : "Search a destination…"}
+          />
+        </div>
+
         <div className="relative">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dashboard-base-content/65" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={derivedCity ? `Vehicles near ${derivedCity}…` : "Search vehicles…"}
+            placeholder={searchCity ? `Vehicles near ${searchCity}…` : "Search vehicles…"}
             className="h-9 text-sm pl-7"
           />
         </div>
@@ -482,7 +516,7 @@ export function TransferView({ day }: { day: number }) {
 
         {!loading && results.length === 0 && (
           <Empty>
-            No vehicles match near {derivedCity || "this stop"}. Try a different filter, or search by name.
+            No vehicles match near {searchCity || "this stop"}. Try a different filter, or search by name.
           </Empty>
         )}
 
@@ -806,6 +840,24 @@ function RouteBlock({ day }: { day: number }) {
   }, [from?.lat, from?.lng, to?.lat, to?.lng]);
 
   if (!itin) return null;
+
+  // "Only ends need a point" mode (Trip Setup → Route toggle): the vehicle
+  // just carries on from wherever the previous day's stay left it, so a day
+  // that's neither the first nor the last has no pickup, drop or distance of
+  // its own to enter.
+  const isMiddleDay = day !== 1 && day !== form.itineraries.length;
+  if (form.restrictTransferPointsToEnds && isMiddleDay) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-dashboard-base-content/70">
+          Journey
+        </p>
+        <p className="text-[11px] text-dashboard-base-content/70 rounded-lg border border-dashed border-dashboard-base-300 px-3 py-2.5">
+          Pickup, drop and distance only apply to Day 1 and the last day of this trip — this day just continues on. Turn off &quot;Only Day 1 &amp; the last day need a pickup/drop point&quot; in Trip Setup → Route if this day needs its own.
+        </p>
+      </div>
+    );
+  }
 
   const differs = estimate && (
     itin.transportDistanceKm !== estimate.distanceKm ||

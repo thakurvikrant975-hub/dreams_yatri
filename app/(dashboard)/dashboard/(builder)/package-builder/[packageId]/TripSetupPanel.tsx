@@ -25,6 +25,7 @@ import { CalendarDays, Users, MapPin, Baby, IndianRupee } from "./builder-icons"
 import { cn } from "@/app/lib/utils";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
+import { Switch } from "@/app/(dashboard)/dashboard/(main)/components/ui/switch";
 import { useBuilder, type PackageForm } from "./builder-context";
 import { RouteStopsEditor } from "./RouteStopsEditor";
 import { recalcFromStops } from "./day-mutations";
@@ -185,6 +186,24 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
           Each day&apos;s hotel and cab search defaults to the stop it falls under, so
           getting these right saves typing a city on every day.
         </p>
+
+        <label className="flex items-start gap-2.5 rounded-lg border border-dashboard-base-300 p-2.5 mt-1">
+          <Switch
+            size="sm"
+            className="mt-0.5"
+            checked={form.restrictTransferPointsToEnds}
+            onCheckedChange={(checked) => setForm((f) => ({ ...f, restrictTransferPointsToEnds: checked }))}
+          />
+          <span className="flex-1">
+            <span className="block text-[11.5px] font-medium text-dashboard-base-content/90">
+              Only Day 1 &amp; the last day need a pickup/drop point
+            </span>
+            <span className="block text-[10.5px] text-dashboard-base-content/60 mt-0.5">
+              Off by default. Turn on to skip pickup, drop and distance on every day in between —
+              the cab just carries on from the previous stay.
+            </span>
+          </span>
+        </label>
       </Block>
 
       <Block icon={Users} title="Travellers">

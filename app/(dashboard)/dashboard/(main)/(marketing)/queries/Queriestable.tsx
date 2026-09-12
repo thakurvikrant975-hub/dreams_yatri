@@ -2,15 +2,20 @@
 
 import { useState, useEffect, useMemo, useTransition } from "react";
 import { formatDistanceToNow, formatDistanceStrict, format } from "date-fns";
+import { toast } from "sonner";
 import {
     CheckCircle2,
     Phone, MapPin, StickyNote,
     Inbox, UserCheck, Send, Clock, TrendingUp,
     Ticket, Users, CalendarDays, MessageSquare,
+    Download, FileText, FileSpreadsheet, Loader2,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../../components/ui/tooltip";
+import {
+    DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+} from "../../components/ui/dropdown-menu";
 import { DataTable, type ColumnDef } from "../../components/dashboard/Datatable";
 import { TableFilters } from "../../components/dashboard/Tablefilters";
 import { StatCard, StatGrid } from "../../components/dashboard/Statcard";
@@ -174,8 +179,10 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     const [filterDestination, setFilterDestination] = useState("all");
     const [minCost, setMinCost] = useState<number | null>(null);
     const [minGroupSize, setMinGroupSize] = useState<number | null>(null);
+    const [minDays, setMinDays] = useState<number | null>(null);
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+    const [downloadingReport, setDownloadingReport] = useState<"pdf" | "xlsx" | null>(null);
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [detailQuery, setDetailQuery] = useState<QueryWithDetails | null>(null);
@@ -222,9 +229,13 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
         // ask — an unpriced query isn't "cheap", it just hasn't been quoted.
         const matchCost = minCost === null || (q.packagePrice !== null && q.packagePrice >= minCost);
         const matchGroupSize = minGroupSize === null || (q.groupSize !== null && q.groupSize >= minGroupSize);
+        // Strictly greater than, per how this filter reads ("Days > X") — a
+        // query with exactly X days isn't "more than X days".
+        const matchDays = minDays === null
+            || ((q.requirements?.journey?.noOfDays ?? 0) > minDays);
 
         return matchSearch && matchStatus && matchSource && matchVerified && matchMember
-            && matchDestination && matchCost && matchGroupSize;
+            && matchDestination && matchCost && matchGroupSize && matchDays;
     });
 
     const destinationOptions = useMemo(() => {
@@ -258,7 +269,59 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
     }
     const isFiltering = search !== "" || filterStatus !== "all" || filterSource !== "all"
         || filterVerified !== "all" || filterMember !== "all" || filterDestination !== "all"
-        || minCost !== null || minGroupSize !== null;
+        || minCost !== null || minGroupSize !== null || minDays !== null;
+
+    // Human-readable recap of whatever's currently narrowing the list, so an
+    // exported report is self-explanatory once it's off-screen — "42 queries"
+    // means something different depending on whether that's everything or a
+    // filtered slice, and the PDF has no other way to say which.
+    const filterSummary = [
+        search && `Search: "${search}"`,
+        filterStatus !== "all" && `Status: ${STATUS_FILTER_OPTIONS.find((o) => o.value === filterStatus)?.label ?? filterStatus}`,
+        filterSource !== "all" && `Source: ${SOURCE_FILTER_OPTIONS.find((o) => o.value === filterSource)?.label ?? filterSource}`,
+        filterVerified !== "all" && (filterVerified === "verified" ? "Verified only" : "Unverified only"),
+        filterMember !== "all" && `Assigned: ${memberOptions.find((o) => o.value === filterMember)?.label ?? filterMember}`,
+        filterDestination !== "all" && `Destination: ${filterDestination}`,
+        minCost !== null && `Cost ≥ ₹${minCost.toLocaleString("en-IN")}`,
+        minGroupSize !== null && `Persons ≥ ${minGroupSize}`,
+        minDays !== null && `Days > ${minDays}`,
+    ].filter(Boolean).join(" · ");
+
+    // Reports the currently FILTERED list, not just the current page — an
+    // exec narrowing to "Days > 7" wants every matching query in the report,
+    // not only the 10 shown on screen. Builder modules are dynamically
+    // imported so jsPDF/xlsx never load into this page's initial bundle for
+    // the (common) case nobody ever exports anything.
+    async function handleDownloadPdf() {
+        setDownloadingReport("pdf");
+        try {
+            const { buildQueriesReportPdf } = await import("./queriesReportPdf");
+            const pdf = buildQueriesReportPdf(filtered, { filterSummary: filterSummary || undefined });
+            pdf.save(`queries-report-${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+            toast.success("Report downloaded");
+        } catch {
+            toast.error("Couldn't generate the PDF. Try again.");
+        } finally {
+            setDownloadingReport(null);
+        }
+    }
+
+    async function handleDownloadExcel() {
+        setDownloadingReport("xlsx");
+        try {
+            const [{ buildQueriesReportXlsx }, XLSX] = await Promise.all([
+                import("./queriesReportXlsx"),
+                import("xlsx"),
+            ]);
+            const wb = buildQueriesReportXlsx(filtered);
+            XLSX.writeFile(wb, `queries-report-${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`);
+            toast.success("Report downloaded");
+        } catch {
+            toast.error("Couldn't generate the Excel file. Try again.");
+        } finally {
+            setDownloadingReport(null);
+        }
+    }
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const submitted = queries.filter((q) => q.status === "SUBMITTED").length;
@@ -514,7 +577,34 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
             <div className="space-y-5">
 
                 {/* ── Stats ── */}
-                <div className="flex items-center justify-end">
+                <div className="flex items-center justify-end gap-2">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={downloadingReport !== null}
+                                className="gap-1.5"
+                            >
+                                {downloadingReport ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Download className="h-3.5 w-3.5" />
+                                )}
+                                Export {isFiltering ? `${filtered.length}` : `${queries.length}`} {filtered.length === 1 ? "Query" : "Queries"}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={handleDownloadPdf} disabled={downloadingReport !== null}>
+                                <FileText className="h-3.5 w-3.5 text-dashboard-error" />
+                                Download as PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleDownloadExcel} disabled={downloadingReport !== null}>
+                                <FileSpreadsheet className="h-3.5 w-3.5 text-dashboard-success" />
+                                Download as Excel (.xlsx)
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <TodaysAssignmentDialog queries={queries} />
                 </div>
                 <StatGrid cols={6}>
@@ -627,6 +717,13 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                         onChange={(v) => { setMinGroupSize(v); setPage(1); }}
                         placeholder="Any"
                         width="w-36"
+                    />
+                    <MinNumberFilter
+                        label="Days >"
+                        value={minDays}
+                        onChange={(v) => { setMinDays(v); setPage(1); }}
+                        placeholder="Any"
+                        width="w-32"
                     />
                 </TableFilters>
 
