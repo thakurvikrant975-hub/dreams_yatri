@@ -19,13 +19,32 @@ export const IMAGE_SIZES = {
   lightbox:  { width: 1600, quality: 90               },  // full-screen lightbox
 } as const;
 
+/** Said once per process, not once per image, so a misconfigured build logs a
+ * line rather than 758 of them. */
+let warnedAboutMissingBase = false;
+
 export function getImageUrl(key: string, size: ImageSize = {}): string {
-  const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL!;
+  // No `!`: every other reader of this variable defaults it, and this one is
+  // called while prerendering every package page. Asserting it away turned a
+  // missing variable into `undefined.includes(...)` — one TypeError that ended
+  // a whole build, 758 pages at a time (a preview deploy on 2026-09-12, where
+  // the Preview copy of the variable was scoped to a single git branch).
+  // A missing base is a deployment fault, not a reason to fail the build: say
+  // so, and degrade to no image, exactly as a missing key does.
+  const base = process.env.NEXT_PUBLIC_R2_PUBLIC_URL ?? "";
 
   if (!key) return "";
 
   // Full URL (e.g. unsplash, external CDN) — pass through unchanged
   if (key.startsWith("http")) return key;
+
+  if (!base) {
+    if (!warnedAboutMissingBase) {
+      warnedAboutMissingBase = true;
+      console.warn("[imageUrl] NEXT_PUBLIC_R2_PUBLIC_URL is not set — images will be missing. Check the variable's environments (and git-branch scope) in Vercel.");
+    }
+    return "";
+  }
 
   // Cloudflare image transformations only work on CF-proxied domains.
   // r2.dev public URLs are served directly from R2 — /cdn-cgi/image/ is not
