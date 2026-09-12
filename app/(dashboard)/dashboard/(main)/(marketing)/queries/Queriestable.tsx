@@ -8,7 +8,7 @@ import {
     Phone, MapPin, StickyNote,
     Inbox, UserCheck, Send, Clock, TrendingUp,
     Ticket, Users, CalendarDays, MessageSquare,
-    Download, FileText, FileSpreadsheet, Loader2,
+    Download, FileText, FileSpreadsheet, Loader2, Moon,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -454,8 +454,15 @@ export function QueriesTable({ queries: initialQueries, reasons }: Props) {
                     {/* Folded in from the old standalone "Group / Date" column —
                         same info, shown as small icon chips instead of its own
                         column, to keep the table from scrolling horizontally. */}
-                    {(q.groupSize || q.travelDate || q.packagePrice) && (
+                    {(q.requirements?.journey?.noOfDays || q.groupSize || q.travelDate || q.packagePrice) && (
                         <div className="flex items-center gap-2 text-[11px] text-dashboard-base-content/60 pt-0.5">
+                            {!!q.requirements?.journey?.noOfDays && (
+                                <span className="flex items-center gap-0.5" title="Trip duration">
+                                    <Moon className="h-2.5 w-2.5" />
+                                    {q.requirements.journey.noOfDays}D
+                                    {q.requirements.journey.noOfNights != null && `/${q.requirements.journey.noOfNights}N`}
+                                </span>
+                            )}
                             {q.groupSize && (
                                 <span className="flex items-center gap-0.5">
                                     <Users className="h-2.5 w-2.5" /> {q.groupSize}
