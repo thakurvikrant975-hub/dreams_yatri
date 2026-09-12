@@ -18,6 +18,7 @@ import { RouteBuilderSidebar, type EditingRoute } from "./RouteBuilderSidebar";
 import { type SelectableImage } from "../../components/dashboard/DBImageSelector";
 import {
   handleDeleteRouteVariant,
+  handleDeleteDuration,
   handleGetRouteData,
   handleUpdateDurationMeta,
 } from "@/app/actions/packages/route-builder.actions";
@@ -91,15 +92,19 @@ function DurationCard({
   onEdit,
   onDelete,
   onSetDefault,
+  onDeleteDuration,
   deleting,
   settingDefault,
+  deletingDuration,
 }: {
   duration: Duration;
   onEdit: (route: EditingRoute) => void;
   onDelete: (route: RouteRow) => void;
   onSetDefault: (durationId: number) => void;
+  onDeleteDuration: (duration: Duration) => void;
   deleting: number | null;
   settingDefault: number | null;
+  deletingDuration: number | null;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -146,6 +151,21 @@ function DurationCard({
           <span className="text-xs text-dashboard-base-content/50">
             {duration.routes.length} variant{duration.routes.length !== 1 ? "s" : ""}
           </span>
+          {duration.routes.length === 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 rounded-md text-dashboard-base-100/70 hover:text-dashboard-error hover:bg-dashboard-error/10"
+              disabled={deletingDuration === duration.id}
+              onClick={() => onDeleteDuration(duration)}
+            >
+              {deletingDuration === duration.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="h-3.5 w-3.5" />
+              )}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -228,8 +248,11 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
   const [editingRoute, setEditingRoute] = useState<EditingRoute | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ routeId: number; itineraryCount: number } | null>(null);
+  const [deletingDurationId, setDeletingDurationId] = useState<number | null>(null);
+  const [confirmDeleteDuration, setConfirmDeleteDuration] = useState<Duration | null>(null);
   const [settingDefaultId, setSettingDefaultId] = useState<number | null>(null);
   const [, startDeleting] = useTransition();
+  const [, startDeletingDuration] = useTransition();
   const [, startSettingDefault] = useTransition();
 
   async function refresh() {
@@ -278,6 +301,24 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
     });
   }
 
+  function handleDeleteDurationClick(duration: Duration) {
+    setConfirmDeleteDuration(duration);
+  }
+
+  function handleConfirmDeleteDuration() {
+    if (!confirmDeleteDuration) return;
+    const durationId = confirmDeleteDuration.id;
+    setConfirmDeleteDuration(null);
+    setDeletingDurationId(durationId);
+    startDeletingDuration(async () => {
+      const res = await handleDeleteDuration(durationId, packageId);
+      setDeletingDurationId(null);
+      if (!res.success) { toast.error(res.message); return; }
+      toast.success("Duration deleted");
+      await refresh();
+    });
+  }
+
   const totalVariants = data.reduce((s, d) => s + d.routes.length, 0);
 
   return (
@@ -308,8 +349,10 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
               onEdit={openEdit}
               onDelete={handleDeleteClick}
               onSetDefault={handleSetDefault}
+              onDeleteDuration={handleDeleteDurationClick}
               deleting={deletingId}
               settingDefault={settingDefaultId}
+              deletingDuration={deletingDurationId}
             />
           ))}
         </div>
@@ -368,6 +411,30 @@ export function RouteBuilderTab({ packageId, packageTitle, initialData, packageI
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
+              className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete duration confirm */}
+      <AlertDialog
+        open={confirmDeleteDuration !== null}
+        onOpenChange={(open) => !open && setConfirmDeleteDuration(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {confirmDeleteDuration?.label} duration?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This duration has no routes. It will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDeleteDuration}
               className="bg-dashboard-error text-dashboard-error-content hover:bg-dashboard-error/90"
             >
               Delete

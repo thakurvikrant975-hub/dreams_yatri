@@ -5,6 +5,7 @@ import {
   getPackageRouteData,
   upsertRouteVariant,
   deleteRouteVariant,
+  deleteDuration,
   updateRouteMeta,
   updateDurationMeta,
   type StopInput,
@@ -48,6 +49,16 @@ export async function handleDeleteRouteVariant(routeId: number, packageId: numbe
     return { success: true };
   } catch (e) {
     return { success: false, message: e instanceof Error ? e.message : "Failed to delete route" };
+  }
+}
+
+export async function handleDeleteDuration(durationId: number, packageId: number) {
+  try {
+    await deleteDuration(durationId);
+    revalidatePath(`/dashboard/packages/${packageId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : "Failed to delete duration" };
   }
 }
 

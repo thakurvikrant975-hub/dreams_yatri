@@ -269,6 +269,21 @@ export async function deleteRouteVariant(routeId: number) {
   await cleanOrphanDuration(route.duration_id);
 }
 
+export async function deleteDuration(durationId: number) {
+  const duration = await db.package_durations.findUnique({
+    where: { id: durationId },
+    select: { _count: { select: { routes: true } } },
+  });
+  if (!duration) throw new Error("Duration not found");
+  if (duration._count.routes > 0) {
+    throw new Error("Cannot delete a duration that still has routes — delete its routes first");
+  }
+
+  // No cascade on duration_id FK for itineraries; clear any orphaned rows before deleting.
+  await db.package_itineraries.deleteMany({ where: { duration_id: durationId } });
+  await db.package_durations.delete({ where: { id: durationId } });
+}
+
 export async function updateRouteMeta(
   routeId: number,
   data: { name?: string; slug?: string; meta_title?: string | null; meta_desc?: string | null },
