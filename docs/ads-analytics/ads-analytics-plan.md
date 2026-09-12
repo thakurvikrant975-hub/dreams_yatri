@@ -523,12 +523,28 @@ kill campaigns that are working.
 
 ---
 
-## Step 7 — Dashboard
+## Step 7 — Dashboard  ✅ COMPLETE
 
-A new route under [`(marketing)`](<../../app/(dashboard)/dashboard/(main)/(marketing)/>),
-reusing the `lead-report` patterns and its [`ist.ts`](<../../app/(dashboard)/dashboard/(main)/lead-report/ist.ts>)
-helpers. Account → campaign → ad group drill-down, budget pacing against the *monthly*
-envelope, the `QueryStatus` funnel, and junk rate by ad group.
+**Marketing → Ads Performance** (`/dashboard/ads-performance`), in the nav beside Lead Report
+and listed in `nav-hrefs.ts` so page access is grantable per role like every other page.
+
+- Headline tiles: spend, leads, cost per lead, quoted, won, deal value.
+- One row per campaign — spend, daily budget (with "x% lost" when budget cost it more than a
+  fifth of its impressions), clicks, leads, click→lead, cost per lead, quoted, won, no-answer
+  rate, deal value — expanding to its **ad groups**.
+- Range presets (7/30/90 days) and two date inputs; the window lives in the URL, so a view can
+  be shared. Days are the ad account's calendar days (Asia/Calcutta).
+- A freshness line — "Google data synced 3 h ago", amber past ~26 h or after a failed run.
+  A dashboard that quietly shows stale spend is worse than one that admits it.
+
+The page computes nothing: every number comes from `adsPerformance` / `adsTotals`, so it and
+`npm run ads:report` cannot disagree. Two captions carry the caveats that would otherwise be
+misread — wins lag their leads, and deal value is quoted rather than collected; ad-group rows
+start 2026-09-11.
+
+Deliberately no charts yet: this data's job is comparison across campaigns, which a table does
+better than bars, and a trend would need spend and leads on one axis (never two scales). A
+spend-and-leads pair of small multiples is the obvious next addition if it earns its place.
 
 ---
 
