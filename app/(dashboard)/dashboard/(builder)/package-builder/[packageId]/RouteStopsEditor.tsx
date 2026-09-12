@@ -7,18 +7,130 @@
 // makes every subsequent search wrong rather than visibly failing. Extracted
 // from page.tsx unchanged, so the Trip Setup panel and the right-hand panel
 // share one copy while the latter is being retired.
+//
+// Reordering (the drag handle below) goes through `onMove`, not `onChange`:
+// moving a stop needs to carry its block of itinerary days along with it
+// (see reorderStops in builder-context.tsx) so a day's hotel/transport
+// content stays attached to the destination it was booked for instead of
+// being silently relabelled in place by deriveDayLocations. `onChange` alone
+// can't do that — it only ever sees the stops array, never the itinerary.
 
 import { useState } from "react";
-import { Plus, Trash2, MapPin, Pencil, AlertTriangle } from "./builder-icons";
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  useSensor, useSensors, type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, sortableKeyboardCoordinates, useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Plus, Trash2, MapPin, Pencil, AlertTriangle, GripVertical } from "./builder-icons";
 import { Button } from "@/app/(dashboard)/dashboard/(main)/components/ui/button";
 import { Input } from "@/app/(dashboard)/dashboard/(main)/components/ui/input";
 import { LocationSearchSelect } from "@/app/(dashboard)/dashboard/(main)/components/location/LocationSearchSelect";
 import { ROUTE_STOP_TYPES, type LocationValue } from "@/app/(dashboard)/dashboard/(main)/components/location/location.types";
+import { cn } from "@/app/lib/utils";
 import type { StopInput } from "@/app/(dashboard)/dashboard/(builder)/package-builder/action";
 
-export function RouteStopsEditor({ stops, onChange, limitReason, dayCount, onSync }: {
+function StopRow({
+  id, idx, stop, isManual, onUpdate, onRemove, onToggleManual,
+}: {
+  id: string;
+  idx: number;
+  stop: StopInput;
+  isManual: boolean;
+  onUpdate: (patch: Partial<StopInput>) => void;
+  onRemove: () => void;
+  onToggleManual: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-2.5 space-y-2",
+        isDragging && "shadow-md",
+      )}
+    >
+      {/* Destination gets its own full-width row — cramming the
+          nights input and both action buttons in alongside it (the
+          old layout) left the location field too narrow to show
+          more than a few letters of most place names. */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Reorder stop ${idx + 1}`}
+          className="shrink-0 cursor-grab active:cursor-grabbing p-0.5 text-dashboard-base-content/40 hover:text-dashboard-base-content/70"
+        >
+          <GripVertical size={13} />
+        </button>
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10.5px] font-bold text-dashboard-primary">
+          {idx + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          {isManual ? (
+            <Input
+              value={stop.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              placeholder="Type a destination name…"
+              className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+            />
+          ) : (
+            <LocationSearchSelect
+              value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
+              onChange={(loc: LocationValue | null) => onUpdate({ name: loc?.name ?? "" })}
+              types={ROUTE_STOP_TYPES}
+              placeholder="Search a location…"
+              hideTypeBadge
+            />
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onToggleManual}
+          title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
+          className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
+        >
+          {isManual ? <MapPin size={13} /> : <Pencil size={13} />}
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          title="Remove this stop"
+          className="p-1.5 rounded-md hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2 pl-7">
+        <span className="text-[10.5px] font-semibold uppercase tracking-wide text-dashboard-base-content/45">
+          Nights
+        </span>
+        <Input
+          type="number" min={0}
+          value={stop.nights}
+          onChange={(e) => onUpdate({ nights: +e.target.value })}
+          className="text-sm h-7 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
+        />
+      </div>
+    </div>
+  );
+}
+
+export function RouteStopsEditor({ stops, onChange, onMove, limitReason, dayCount, onSync }: {
   stops: StopInput[];
   onChange: (v: StopInput[]) => void;
+  /** Moves a stop from one position to another (0-based) — wired to
+   * builder-context's moveStop, which also carries the stop's itinerary days
+   * along with it. Drag-to-reorder is disabled when this isn't passed, since
+   * a plain onChange reorder would desync the itinerary (see file header). */
+  onMove?: (from: number, to: number) => void;
   /** Why another stop can't be added, or undefined when one can. Passed in
    * rather than computed here: this editor is also used by Trip Setup, and
    * only the caller knows how many days the trip currently has. */
@@ -36,7 +148,14 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount, onSyn
   // plain free-text field, for places not in the catalog yet.
   const [manualRows, setManualRows] = useState<Set<number>>(new Set());
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   function addStop() {
+    // Appended at the end, same as before — dragging it up into the route
+    // (or dragging a neighbour past it) is how it lands "in between" now.
     onChange([...stops, { name: "", nights: 1 }]);
   }
   function updateStop(idx: number, patch: Partial<StopInput>) {
@@ -44,17 +163,42 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount, onSyn
   }
   function removeStop(idx: number) {
     onChange(stops.filter((_, i) => i !== idx));
-    setManualRows((prev) => {
-      const next = new Set<number>();
-      prev.forEach((i) => { if (i < idx) next.add(i); else if (i > idx) next.add(i - 1); });
-      return next;
-    });
+    remapManualRows((i) => (i === idx ? null : i > idx ? i - 1 : i));
   }
   function toggleManualRow(idx: number) {
     setManualRows((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx); else next.add(idx);
       return next;
+    });
+  }
+  function remapManualRows(map: (idx: number) => number | null) {
+    setManualRows((prev) => {
+      const next = new Set<number>();
+      prev.forEach((i) => {
+        const mapped = map(i);
+        if (mapped != null) next.add(mapped);
+      });
+      return next;
+    });
+  }
+
+  // Identity for dnd-kit. Stop position changes on every reorder, so it can't
+  // be the drag id — the index is stable for the duration of a drag, which is
+  // all dnd-kit needs (same trick as DayLayersRail's day ids).
+  const ids = stops.map((_, i) => `stop-row-${i}`);
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id || !onMove) return;
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from === -1 || to === -1) return;
+    onMove(from, to);
+    remapManualRows((i) => {
+      if (i === from) return to;
+      if (from < to) return i > from && i <= to ? i - 1 : i;
+      return i >= to && i < from ? i + 1 : i;
     });
   }
 
@@ -86,68 +230,42 @@ export function RouteStopsEditor({ stops, onChange, limitReason, dayCount, onSyn
       </div>
 
       <div className="space-y-2">
-        {stops.map((stop, idx) => {
-          const isManual = manualRows.has(idx);
-          return (
-            <div key={idx} className="rounded-lg border border-dashboard-base-300 bg-dashboard-base-100 p-2.5 space-y-2">
-              {/* Destination gets its own full-width row — cramming the
-                  nights input and both action buttons in alongside it (the
-                  old layout) left the location field too narrow to show
-                  more than a few letters of most place names. */}
-              <div className="flex items-center gap-2">
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-dashboard-primary/10 text-[10.5px] font-bold text-dashboard-primary">
-                  {idx + 1}
-                </span>
-                <div className="flex-1 min-w-0">
-                  {isManual ? (
-                    <Input
-                      value={stop.name}
-                      onChange={(e) => updateStop(idx, { name: e.target.value })}
-                      placeholder="Type a destination name…"
-                      className="text-sm h-9 border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                    />
-                  ) : (
-                    <LocationSearchSelect
-                      value={stop.name ? { id: `stop-${idx}`, name: stop.name, type: "CITY", breadcrumb: stop.name, slug: "" } : null}
-                      onChange={(loc: LocationValue | null) => updateStop(idx, { name: loc?.name ?? "" })}
-                      types={ROUTE_STOP_TYPES}
-                      placeholder="Search a location…"
-                      hideTypeBadge
-                    />
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleManualRow(idx)}
-                  title={isManual ? "Choose from locations" : "Can't find it? Type it instead"}
-                  className="p-1.5 rounded-md hover:bg-dashboard-base-300 text-dashboard-base-content/50 hover:text-dashboard-base-content transition-colors shrink-0"
-                >
-                  {isManual ? <MapPin size={13} /> : <Pencil size={13} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeStop(idx)}
-                  title="Remove this stop"
-                  className="p-1.5 rounded-md hover:bg-dashboard-error/10 text-dashboard-error/70 hover:text-dashboard-error transition-colors shrink-0"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2 pl-7">
-                <span className="text-[10.5px] font-semibold uppercase tracking-wide text-dashboard-base-content/45">
-                  Nights
-                </span>
-                <Input
-                  type="number" min={0}
-                  value={stop.nights}
-                  onChange={(e) => updateStop(idx, { nights: +e.target.value })}
-                  className="text-sm h-7 w-16 text-center border-dashboard-base-300 focus-visible:ring-dashboard-primary/20 focus-visible:border-dashboard-primary rounded-md"
-                />
-              </div>
-            </div>
-          );
-        })}
+        {stops.length > 0 && (
+          onMove ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+                {stops.map((stop, idx) => (
+                  <StopRow
+                    key={ids[idx]}
+                    id={ids[idx]}
+                    idx={idx}
+                    stop={stop}
+                    isManual={manualRows.has(idx)}
+                    onUpdate={(patch) => updateStop(idx, patch)}
+                    onRemove={() => removeStop(idx)}
+                    onToggleManual={() => toggleManualRow(idx)}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          ) : (
+            // No onMove wired up — render plainly, without drag handles,
+            // rather than silently offering a reorder that would desync the
+            // itinerary (see the onMove doc comment above).
+            stops.map((stop, idx) => (
+              <StopRow
+                key={ids[idx]}
+                id={ids[idx]}
+                idx={idx}
+                stop={stop}
+                isManual={manualRows.has(idx)}
+                onUpdate={(patch) => updateStop(idx, patch)}
+                onRemove={() => removeStop(idx)}
+                onToggleManual={() => toggleManualRow(idx)}
+              />
+            ))
+          )
+        )}
         {stops.length === 0 && (
           <p className="text-xs text-dashboard-base-content/40 italic">
             No stops added — Duration & Destination(s) below stay manually editable.

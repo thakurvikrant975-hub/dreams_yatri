@@ -568,13 +568,14 @@ function TicketPax({ ticket, packagePax, onChange }: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function StopsView() {
-  const { form, setForm, syncDaysWithStops } = useBuilder();
+  const { form, setForm, syncDaysWithStops, moveStop } = useBuilder();
 
   return (
     <div className="p-5 space-y-4">
       <RouteStopsEditor
         stops={form.stops}
         onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
+        onMove={moveStop}
         limitReason={stopLimitReason(form.stops.length, form.itineraries.length)}
         dayCount={form.itineraries.length}
         onSync={syncDaysWithStops}

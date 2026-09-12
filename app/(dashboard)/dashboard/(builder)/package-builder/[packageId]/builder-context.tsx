@@ -276,6 +276,9 @@ type BuilderContextValue = {
   removeDay: (day: number) => void;
   /** Moves a day to a new position (0-based), renumbering the rest. */
   moveDay: (from: number, to: number) => void;
+  /** Moves a route stop to a new position (0-based), carrying its block of
+   * itinerary days along with it — see reorderStops. */
+  moveStop: (from: number, to: number) => void;
   /** Adds/removes days so the itinerary matches `form.stops`' current
    * nights — see syncItineraryWithStops. */
   syncDaysWithStops: () => void;
@@ -423,6 +426,7 @@ export function PackageBuilderProvider({
     addDayAfter: (day) => setForm((f) => insertDayAfter(f, day)),
     removeDay: (day) => setForm((f) => deleteDay(f, day)),
     moveDay: (from, to) => setForm((f) => reorderDays(f, from, to)),
+    moveStop: (from, to) => setForm((f) => reorderStops(f, from, to)),
     syncDaysWithStops: () => setForm((f) => syncItineraryWithStops(f)),
     selectedDay: safeSelectedDay,
     setSelectedDay,
@@ -744,6 +748,56 @@ export function reorderDays(form: PackageForm, from: number, to: number): Packag
   // Old day number → new one, read off the reordered list before renumbering.
   const mapping = new Map(days.map((d, i) => [d.day, i + 1]));
   return renumber(form, days, (d) => mapping.get(d) ?? d);
+}
+
+/** Moves a stop from one position to another, 0-based — the drag-reorder in
+ * RouteStopsEditor, and how a newly-added stop (always appended at the end)
+ * gets placed in the middle of the route instead.
+ *
+ * A DayItinerary has no stored link to its stop (see syncItineraryWithStops
+ * above), so a bare stop-array reorder would leave deriveDayLocations
+ * relabelling every day's city on the next render while the day's actual
+ * content — hotel, transport, experiences — stays put at its old array
+ * position: day 3 could say "Delhi" while still showing the Manali hotel
+ * picked when day 3 was Manali. To avoid that, this carries the stop's whole
+ * block of days along with it, the same way reorderDays carries one day's
+ * add-ons through renumber.
+ *
+ * Only safe to compute a stop's block when the route and itinerary already
+ * agree on day count — with a pending "Sync Itinerary" mismatch there's no
+ * reliable owner for each day, so this falls back to reordering the stops
+ * alone and leaves the existing mismatch banner to tell the user to sync. */
+export function reorderStops(form: PackageForm, from: number, to: number): PackageForm {
+  const n = form.stops.length;
+  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return form;
+
+  const stops = [...form.stops];
+  const [movedStop] = stops.splice(from, 1);
+  stops.splice(to, 0, movedStop);
+
+  const totalNights = form.stops.reduce((sum, s) => sum + (s.nights || 0), 0);
+  const impliedDays = totalNights + 1;
+  if (impliedDays !== form.itineraries.length) {
+    return { ...form, stops };
+  }
+
+  // Each stop's current contiguous block of days, in OLD stop order — the
+  // last stop's block absorbs the trip's trailing "+1" day, mirroring
+  // deriveDayLocations/syncItineraryWithStops' own convention.
+  const blocks: DayItinerary[][] = [];
+  let cursor = 0;
+  form.stops.forEach((s, i) => {
+    const len = i === form.stops.length - 1 ? (s.nights || 0) + 1 : (s.nights || 0);
+    blocks.push(form.itineraries.slice(cursor, cursor + len));
+    cursor += len;
+  });
+
+  const [movedBlock] = blocks.splice(from, 1);
+  blocks.splice(to, 0, movedBlock);
+  const newDays = blocks.flat();
+
+  const mapping = new Map(newDays.map((d, i) => [d.day, i + 1]));
+  return renumber({ ...form, stops }, newDays, (d) => mapping.get(d) ?? d);
 }
 
 /** Deletes a day, with everything on it. Refuses to remove the last one — a

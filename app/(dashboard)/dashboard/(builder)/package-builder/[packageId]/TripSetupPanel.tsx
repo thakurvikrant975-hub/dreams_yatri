@@ -103,7 +103,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
    * the next save, which is a worse answer than not offering it. */
   onApplyPrice?: () => void;
 }) {
-  const { form, setForm, canEdit, syncDaysWithStops } = useBuilder();
+  const { form, setForm, canEdit, syncDaysWithStops, moveStop } = useBuilder();
   const missingAges = travellersMissingAges(form);
   const bands = bandsOf(form);
   const mismatches = bandMismatchLines(form);
@@ -177,6 +177,7 @@ export function TripSetupPanel({ computed, onApplyPrice }: {
         <RouteStopsEditor
           stops={form.stops}
           onChange={(stops) => setForm((f) => ({ ...f, stops, ...recalcFromStops(stops) }))}
+          onMove={moveStop}
           dayCount={form.itineraries.length}
           onSync={syncDaysWithStops}
         />
