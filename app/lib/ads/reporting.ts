@@ -189,3 +189,43 @@ export async function lastAdsSync(db: RawQuerier): Promise<{ kind: string; statu
     WHERE platform = 'GOOGLE' ORDER BY "startedAt" DESC LIMIT 1`);
   return row ?? null;
 }
+
+/**
+ * Leads that Google Ads produced but no click id can prove.
+ *
+ * Someone who rings the number on a landing page leaves no click behind: no
+ * gclid, no landing URL, nothing to tie them to a campaign. The same is true of
+ * click-to-WhatsApp ads, where the visitor never reaches the site. Their spend
+ * is in the totals either way, so leaving them out of cost-per-lead overstates
+ * it — while attributing them to a campaign would be invention. They are
+ * counted here, for the account as a whole, and never pushed into a campaign row.
+ *
+ * `phoneNamingAdvertisedDestination` is the honest middle: phone leads whose
+ * recorded destination matches an enabled campaign's name. It is a hint, not
+ * attribution — a caller asking about Goa while Goa is advertised probably saw
+ * an ad, but "probably" is the whole of it.
+ */
+export async function offAdsLeads(
+  db: RawQuerier,
+  opts: { from: string; to: string },
+): Promise<{ phone: number; phoneNamingAdvertisedDestination: number; whatsappFromGoogle: number }> {
+  const from = assertDate(opts.from, "from");
+  const to = assertDate(opts.to, "to");
+  const [row] = await db.$queryRaw<{ phone: number; advertised: number; whatsapp: number }[]>(Prisma.sql`
+    SELECT
+      count(*) FILTER (WHERE source::text = 'PHONE_CALL')::int AS phone,
+      count(*) FILTER (WHERE source::text = 'PHONE_CALL' AND EXISTS (
+        SELECT 1 FROM google_ads_campaigns g
+        WHERE g.status = 'ENABLED'
+          AND lower(g.name) LIKE '%' || lower(split_part(q.destination, ' ', 1)) || '%'
+      ))::int AS advertised,
+      count(*) FILTER (WHERE source::text = 'WHATSAPP_GOOGLE')::int AS whatsapp
+    FROM package_queries q
+    WHERE q."deletedAt" IS NULL AND q."adsCampaignId" IS NULL
+      AND ((q."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${ACCOUNT_TZ})::date BETWEEN ${from}::date AND ${to}::date`);
+  return {
+    phone: row?.phone ?? 0,
+    phoneNamingAdvertisedDestination: row?.advertised ?? 0,
+    whatsappFromGoogle: row?.whatsapp ?? 0,
+  };
+}

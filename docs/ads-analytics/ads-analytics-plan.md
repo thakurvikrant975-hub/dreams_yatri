@@ -502,6 +502,18 @@ matched to a spend date, or every lead after 18:30 UTC lands on the wrong day.
 Gujarat's ₹145; Kashmir bought 220 clicks and no leads. At ad-group level (from 2026-09-11):
 Chardham ₹38/lead at 33% click→lead, Nainital ₹374 at 3.7%.
 
+**Leads Google produced that no click id can prove.** A caller who rings the number on a
+landing page leaves no gclid, no landing URL, nothing tying them to a campaign — and
+click-to-WhatsApp ads never bring the visitor to the site at all. Their spend is in the totals
+regardless, so `offAdsLeads()` counts them for the account and never pushes them into a
+campaign row. The dashboard's headline cost per lead is **spend ÷ (website + phone)**; the
+per-campaign table stays website-only, because a campaign column needs a campaign.
+
+For 1–12 Sep the difference is large enough to matter: 442 website leads alone read ₹199 a
+lead; with 222 phone leads it is ₹132. Of those calls, 144 name a destination we advertise —
+a hint, not attribution. 20 WhatsApp-from-Google leads are counted nowhere; closing that gap
+needs the click identifier carried into the WhatsApp conversation (Step 10 territory).
+
 ⚠️ **Win metrics need time to mature.** A lead is marked `CONVERTED` days after it arrives, so
 recent windows always understate wins — 0.5% over 1–12 Sep is mostly immaturity, not truth.
 Step 7 should show wins by lead cohort, not as a headline rate on a short window.

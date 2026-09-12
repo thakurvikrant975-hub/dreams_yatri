@@ -8,7 +8,7 @@
  *   npm run ads:report -- --level adgroup
  */
 import { db, dbTarget } from "./_db";
-import { adsPerformance, adsTotals } from "../app/lib/ads/reporting";
+import { adsPerformance, adsTotals, offAdsLeads } from "../app/lib/ads/reporting";
 import { recentStatsWindow } from "../app/lib/ads/google/sync-stats";
 
 const arg = (name: string) => {
@@ -24,7 +24,7 @@ const pct = (n: number | null) => (n === null ? "—" : (n * 100).toFixed(1) + "
   const to = arg("to") ?? recent.to;
   const level = arg("level") === "adgroup" ? "adGroup" : "campaign";
 
-  const rows = await adsPerformance(db, { from, to, level });
+  const [rows, offAds] = await Promise.all([adsPerformance(db, { from, to, level }), offAdsLeads(db, { from, to })]);
   console.log(`\nads performance by ${level === "adGroup" ? "ad group" : "campaign"} — ${from} → ${to}  (${dbTarget})\n`);
   console.table(rows.map((r) => ({
     [level === "adGroup" ? "ad group" : "campaign"]: (level === "adGroup" && r.parentName ? `${r.parentName} · ` : "") + r.name,
@@ -38,7 +38,10 @@ const pct = (n: number | null) => (n === null ? "—" : (n * 100).toFixed(1) + "
   const t = adsTotals(rows);
   console.log(`total  ${inr(t.spend)} spend · ${t.clicks} clicks · ${t.leads} leads (${inr(t.costPerLead)} each, ${pct(t.clickToLead)} of clicks)`);
   console.log(`       ${t.quoted} quoted (${inr(t.costPerQuoted)} each) · ${t.won} won (${inr(t.costPerWin)} each, ${pct(t.winRate)}) · ${pct(t.junkRate)} never answered`);
-  console.log(`       ${inr(t.dealValue)} of quoted deal value — value quoted and accepted, not cash collected\n`);
+  console.log(`       ${inr(t.dealValue)} of quoted deal value — value quoted and accepted, not cash collected`);
+  const withCalls = t.leads + offAds.phone;
+  console.log(`       + ${offAds.phone} phone leads (${offAds.phoneNamingAdvertisedDestination} about an advertised destination) → ${inr(withCalls > 0 ? t.spend / withCalls : null)} per lead counting calls` +
+    (offAds.whatsappFromGoogle ? `; ${offAds.whatsappFromGoogle} WhatsApp-from-Google leads carry no click id and are counted nowhere` : "") + "\n");
   await db.$disconnect();
 })().catch(async (e) => {
   console.error("✗ report failed:", e instanceof Error ? e.message : e);

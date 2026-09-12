@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight, IndianRupee, Users, Send, Trophy, TriangleAlert, Loader2 } from "lucide-react";
+import { ChevronRight, IndianRupee, Users, Phone, Send, Trophy, TriangleAlert, Loader2 } from "lucide-react";
 import { cn } from "@/app/lib/utils";
 import { StatCard } from "../../components/dashboard/Statcard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
@@ -106,10 +106,22 @@ export function AdsPerformanceClient({ data }: { data: AdsDashboardData }) {
       </div>
 
       {/* Headline numbers */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Spend" value={inr(t.spend)} sub={`${count(t.clicks)} clicks`} icon={IndianRupee} />
-        <StatCard label="Leads" value={count(t.leads)} sub={`${pct(t.clickToLead)} of clicks`} icon={Users} />
-        <StatCard label="Cost per lead" value={inr(t.costPerLead)} sub={`${pct(t.junkRate)} never answered`} icon={IndianRupee} highlight />
+        <StatCard label="Website leads" value={count(t.leads)} sub={`${pct(t.clickToLead)} of clicks`} icon={Users} />
+        <StatCard
+          label="Phone leads"
+          value={count(data.offAds.phone)}
+          sub={`${count(data.offAds.phoneNamingAdvertisedDestination)} about a destination we advertise`}
+          icon={Phone}
+        />
+        <StatCard
+          label="Cost per lead"
+          value={inr(data.costPerLeadWithCalls)}
+          sub={`website + phone · ${inr(t.costPerLead)} on website alone`}
+          icon={IndianRupee}
+          highlight
+        />
         <StatCard label="Quoted" value={count(t.quoted)} sub={`${inr(t.costPerQuoted)} each`} icon={Send} />
         <StatCard label="Won" value={count(t.won)} sub={t.won ? `${inr(t.costPerWin)} each` : "none yet in this window"} icon={Trophy} />
         <StatCard label="Deal value" value={inr(t.dealValue)} sub="quoted, not collected" icon={IndianRupee} />
@@ -117,8 +129,11 @@ export function AdsPerformanceClient({ data }: { data: AdsDashboardData }) {
 
       {/* Wins lag their leads, so say so rather than let 0.5% read as failure. */}
       <p className="text-xs text-dashboard-base-content/50">
-        A lead is marked converted days after it arrives, so recent windows always understate wins.
-        Deal value is the quoted price of won leads — what was agreed, not what has been collected.
+        Cost per lead counts website and phone leads together — a call comes off the number on the same
+        landing page the ads pay for. Calls carry no campaign, so the table below counts website leads only.
+        {data.offAds.whatsappFromGoogle > 0 && ` ${data.offAds.whatsappFromGoogle} WhatsApp leads from Google ads are not counted anywhere: click-to-WhatsApp leaves no click id.`}
+        {" "}A lead is marked converted days after it arrives, so recent windows always understate wins, and
+        deal value is the quoted price of won leads — agreed, not collected.
       </p>
 
       <div className="rounded-xl border border-dashboard-base-300 bg-dashboard-base-100 overflow-x-auto">
