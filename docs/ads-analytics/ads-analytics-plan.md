@@ -471,14 +471,42 @@ code that writes those tables shipped.
 
 ---
 
-## Step 6 — The join layer & metric definitions
+## Step 6 — The join layer & metric definitions  ✅ COMPLETE
 
-A service joining `ads_daily_stats` ↔ `package_queries` (via `adsCampaignId` / `adsAdGroupId`)
-↔ `Booking` (via `sourceQueryId`). Definitions are fixed here, in one place, before any UI is
-written:
+[`app/lib/ads/reporting.ts`](<../../app/lib/ads/reporting.ts>) — `adsPerformance(db, {from, to, level})`
+returns one row per campaign or ad group, and `adsTotals` sums them. Every report and the
+dashboard read from here, so a definition lives once. `npm run ads:report` prints it
+(`-- --level adgroup`, `-- --days N`, `-- --from … --to …`).
 
-| Metric | Definition |
-|---|---|
+**Definitions, chosen against what production actually records (checked 2026-09-12):**
+
+| Term | Means | Why not the obvious thing |
+|---|---|---|
+| lead | a `package_queries` row carrying the campaign / ad group | |
+| quoted | that lead has a custom package marked `SENT` | `verified` is set on **2 leads in 2,575** — it means nothing here |
+| won | the lead's status is `CONVERTED` | only **9 leads became bookings in 180 days**; sales mark the lead, not a booking |
+| value | the latest custom package's `totalPrice` on a won lead | quoted and accepted, **not cash collected** |
+| junk | closed as `UNRESPONSIVE` | the lead that never answered — 153 of 1,257 closes |
+
+**Margin ROAS is not computable and is deliberately absent**: `bookings.marginAmount` is 0 on
+every row and payments are unused. Anything labelled ROAS here would be invented. Revisit if
+margin starts being filled in.
+
+Two rules the numbers depend on: **Google owns cost, we own outcomes** (its conversion count is
+never mixed in), and **each side is aggregated before joining** — the fan-out that read Goa at
+₹30,60,413 instead of ₹23,724. Lead timestamps are converted UTC → Asia/Calcutta before being
+matched to a spend date, or every lead after 18:30 UTC lands on the wrong day.
+
+**Production, 1–12 Sep:** ₹83,293 spend, 4,704 clicks, 442 leads (₹188 each, 9.4% of clicks),
+121 quoted (₹688 each), 2 won, ₹46,003 quoted deal value. Sikkim costs ₹289/lead against
+Gujarat's ₹145; Kashmir bought 220 clicks and no leads. At ad-group level (from 2026-09-11):
+Chardham ₹38/lead at 33% click→lead, Nainital ₹374 at 3.7%.
+
+⚠️ **Win metrics need time to mature.** A lead is marked `CONVERTED` days after it arrives, so
+recent windows always understate wins — 0.5% over 1–12 Sep is mostly immaturity, not truth.
+Step 7 should show wins by lead cohort, not as a headline rate on a short window.
+
+---|---|
 | CPL | ad cost ÷ leads |
 | Cost per **verified** lead | ad cost ÷ leads with `verified = true` |
 | Junk rate | rejected leads ÷ total leads, per ad group |

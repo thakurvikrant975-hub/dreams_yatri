@@ -34,6 +34,7 @@
     "test:ads-parity": "tsx scripts/test-ads-attribution-parity.ts",
     "test:google-ads": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/test-google-ads.ts",
     "ads:backfill-leads": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local scripts/ads-backfill-attribution.ts",
+    "ads:report": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local scripts/ads-report.ts",
     "ads:sync-stats": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local scripts/ads-sync-stats.ts",
     "ads:sync-structure": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.development.local --env-file-if-exists=.env.local scripts/ads-sync-structure.ts",
     "test:image-url": "tsx scripts/test-image-url.ts",
